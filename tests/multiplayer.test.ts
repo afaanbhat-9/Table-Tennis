@@ -118,6 +118,7 @@ async function runMultiplayerTests() {
   server.close();
 
   console.log('\n=== ALL MULTIPLAYER TESTS PASSED SUCCESSFULLY! ===');
+  process.exit(0);
 }
 
 runMultiplayerTests().catch((err) => {
