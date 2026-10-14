@@ -8,7 +8,6 @@ export class GymnasiumMesh {
     this.group = new THREE.Group();
     this.buildFloor();
     this.buildBackWall();
-    this.buildBarriers();
     this.buildLighting();
   }
 

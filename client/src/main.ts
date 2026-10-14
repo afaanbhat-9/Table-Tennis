@@ -195,7 +195,7 @@ class GameApp {
     this.spRules.reset('player1');
     this.spPhysics = new PhysicsSimulation();
 
-    this.uiManager.showHUD('singleplayer', 'YOU', `CPU (${difficulty.toUpperCase()})`);
+    this.uiManager.showHUD('singleplayer', 'YOU', 'CPU');
     this.uiManager.updateScoreboard(this.spRules.score, 'player1');
     this.uiManager.showControlHint(4500);
 

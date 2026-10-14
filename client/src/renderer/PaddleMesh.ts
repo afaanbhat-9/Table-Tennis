@@ -21,8 +21,8 @@ export class PaddleMesh {
     bladeGeo.rotateX(Math.PI / 2); // face along Z axis
     bladeGeo.scale(1.0, 1.06, 1.0); // subtle oval ratio
 
-    // Red rubber face for player, green rubber for opponent
-    const rubberColor = isPlayer ? '#d42828' : '#1c8c4f';
+    // Red rubber face for player, vibrant cyan/teal rubber for opponent
+    const rubberColor = isPlayer ? '#d42828' : '#009ebc';
     const rubberTex = TextureGenerator.createPaddleRubberTexture(rubberColor);
 
     const rubberMat = new THREE.MeshStandardMaterial({

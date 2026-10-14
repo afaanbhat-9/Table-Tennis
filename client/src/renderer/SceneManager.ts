@@ -26,9 +26,9 @@ export class SceneManager {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0xbab09e);
 
-    // 2. Camera: Zoomed out ~18% for comfortable elevated view
+    // 2. Camera: Zoomed out for comfortable elevated view matching reference proportions
     const aspect = container.clientWidth / container.clientHeight;
-    this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 50);
+    this.camera = new THREE.PerspectiveCamera(42, aspect, 0.1, 50);
     this.resetCamera();
 
     // 3. WebGL Renderer
@@ -70,9 +70,9 @@ export class SceneManager {
   }
 
   public resetCamera(): void {
-    // Zoomed out elevated three-quarter view with clear visibility of entire table, net, and opponent
-    this.camera.position.set(0, 1.58, 3.05);
-    this.camera.lookAt(0, 0.75, -0.35);
+    // Elevated three-quarter view matching reference framing & proportions
+    this.camera.position.set(0, 1.70, 3.50);
+    this.camera.lookAt(0, 0.72, -0.22);
   }
 
   private setupResize(): void {
@@ -81,7 +81,16 @@ export class SceneManager {
       const height = this.container.clientHeight;
       if (width === 0 || height === 0) return;
 
-      this.camera.aspect = width / height;
+      const aspect = width / height;
+      this.camera.aspect = aspect;
+
+      // In mobile portrait (aspect < 1.0), adapt FOV so table retains generous lateral margins
+      if (aspect < 1.0) {
+        this.camera.fov = Math.min(68, 42 / Math.pow(aspect, 0.65));
+      } else {
+        this.camera.fov = 42;
+      }
+
       this.camera.updateProjectionMatrix();
       this.renderer.setSize(width, height);
     };

@@ -2,10 +2,10 @@ export class SoundManager {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   public isMuted: boolean = false;
-  public volume: number = 0.8;
+  public volume: number = 0.85;
 
   constructor() {
-    // Lazy initialize on first interaction
+    // Lazy initialize on first user gesture
     const unlockAudio = () => {
       this.init();
       window.removeEventListener('pointerdown', unlockAudio);
@@ -51,73 +51,94 @@ export class SoundManager {
   }
 
   /**
-   * Snappy rubber paddle impact sound.
+   * Authentic dual-stage table tennis paddle impact sound.
+   * Combines wooden blade low-end punch with rubber friction pop.
    */
   public playPaddleHit(intensity: number = 0.8): void {
     if (!this.ctx || !this.masterGain || this.isMuted) return;
     const now = this.ctx.currentTime;
+    const clampedIntensity = Math.min(1.4, Math.max(0.4, intensity));
 
+    // 1. Blade body punch: 210 Hz down to 90 Hz
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
-
     osc.type = 'triangle';
-    osc.frequency.setValueAtTime(420, now);
-    osc.frequency.exponentialRampToValueAtTime(110, now + 0.06);
+    osc.frequency.setValueAtTime(210 * (0.9 + clampedIntensity * 0.2), now);
+    osc.frequency.exponentialRampToValueAtTime(80, now + 0.045);
 
-    gain.gain.setValueAtTime(0.5 * intensity, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+    gain.gain.setValueAtTime(0.65 * clampedIntensity, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
 
     osc.connect(gain);
     gain.connect(this.masterGain);
-
     osc.start(now);
-    osc.stop(now + 0.08);
+    osc.stop(now + 0.055);
 
-    // Subtle noise burst for rubber tackiness
-    this.playNoise(0.03, 0.2 * intensity, 1200);
+    // 2. Rubber tackiness & pop: bandpassed noise centered at ~1050 Hz
+    this.playBandpassNoise(0.03, 0.45 * clampedIntensity, 1050, 2.5);
   }
 
   /**
-   * Crisp table bounce "ping / tok" sound.
+   * Authentic table bounce "TOK / PING" sound.
+   * Combines sharp celluloid/ABS impact transient with hollow wooden board resonance.
    */
   public playTableBounce(intensity: number = 0.8): void {
     if (!this.ctx || !this.masterGain || this.isMuted) return;
     const now = this.ctx.currentTime;
+    const clampedIntensity = Math.min(1.3, Math.max(0.35, intensity));
 
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
+    // 1. Sharp initial impact transient (1350 Hz down to 800 Hz in 18ms)
+    const snapOsc = this.ctx.createOscillator();
+    const snapGain = this.ctx.createGain();
+    snapOsc.type = 'sine';
+    snapOsc.frequency.setValueAtTime(1350, now);
+    snapOsc.frequency.exponentialRampToValueAtTime(820, now + 0.02);
 
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(750, now);
-    osc.frequency.exponentialRampToValueAtTime(260, now + 0.05);
+    snapGain.gain.setValueAtTime(0.55 * clampedIntensity, now);
+    snapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
 
-    gain.gain.setValueAtTime(0.6 * intensity, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    snapOsc.connect(snapGain);
+    snapGain.connect(this.masterGain);
+    snapOsc.start(now);
+    snapOsc.stop(now + 0.03);
 
-    osc.connect(gain);
-    gain.connect(this.masterGain);
+    // 2. Wooden table body resonance: 510 Hz with fast exponential ringdown
+    const bodyOsc = this.ctx.createOscillator();
+    const bodyGain = this.ctx.createGain();
+    bodyOsc.type = 'sine';
+    bodyOsc.frequency.setValueAtTime(510, now);
+    bodyOsc.frequency.exponentialRampToValueAtTime(460, now + 0.045);
 
-    osc.start(now);
-    osc.stop(now + 0.07);
+    bodyGain.gain.setValueAtTime(0.48 * clampedIntensity, now);
+    bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.048);
+
+    bodyOsc.connect(bodyGain);
+    bodyGain.connect(this.masterGain);
+    bodyOsc.start(now);
+    bodyOsc.stop(now + 0.05);
+
+    // 3. Wood click micro-transient
+    this.playBandpassNoise(0.015, 0.28 * clampedIntensity, 2400, 3.0);
   }
 
   /**
-   * Soft net brush sound.
+   * Soft net tape brush / mesh flutter sound.
    */
   public playNetHit(): void {
     if (!this.ctx || !this.masterGain || this.isMuted) return;
-    this.playNoise(0.08, 0.35, 800);
+    this.playBandpassNoise(0.07, 0.4, 1850, 2.0);
   }
 
   /**
-   * Cheerful chime when a point is scored.
+   * Pleasant broadcast chime when a point is scored.
    */
   public playScore(): void {
     if (!this.ctx || !this.masterGain || this.isMuted) return;
     const now = this.ctx.currentTime;
 
-    this.playTone(523.25, now, 0.12, 0.25); // C5
-    this.playTone(659.25, now + 0.1, 0.22, 0.25); // E5
+    // Harmonic arpeggio: C5 -> G5
+    this.playTone(523.25, now, 0.12, 0.22);
+    this.playTone(783.99, now + 0.08, 0.25, 0.28);
   }
 
   /**
@@ -128,23 +149,39 @@ export class SoundManager {
     const now = this.ctx.currentTime;
 
     if (isWinner) {
-      // Ascending triumphant fanfare
-      this.playTone(523.25, now, 0.15, 0.3); // C5
-      this.playTone(659.25, now + 0.15, 0.15, 0.3); // E5
-      this.playTone(783.99, now + 0.30, 0.15, 0.3); // G5
-      this.playTone(1046.50, now + 0.45, 0.40, 0.35); // C6
+      // Ascending triumphant major fanfare
+      this.playTone(523.25, now, 0.14, 0.28); // C5
+      this.playTone(659.25, now + 0.12, 0.14, 0.28); // E5
+      this.playTone(783.99, now + 0.24, 0.14, 0.32); // G5
+      this.playTone(1046.50, now + 0.38, 0.45, 0.36); // C6
     } else {
-      // Descending defeat cadence
-      this.playTone(493.88, now, 0.2, 0.3); // B4
-      this.playTone(440.00, now + 0.2, 0.2, 0.3); // A4
-      this.playTone(392.00, now + 0.4, 0.4, 0.3); // G4
+      // Soft descending cadence
+      this.playTone(493.88, now, 0.18, 0.25); // B4
+      this.playTone(440.00, now + 0.16, 0.18, 0.25); // A4
+      this.playTone(392.00, now + 0.32, 0.35, 0.25); // G4
     }
   }
 
+  /**
+   * Clean tactile UI button click.
+   */
   public playButtonClick(): void {
     if (!this.ctx || !this.masterGain || this.isMuted) return;
     const now = this.ctx.currentTime;
-    this.playTone(600, now, 0.04, 0.15);
+
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, now);
+    osc.frequency.exponentialRampToValueAtTime(320, now + 0.022);
+
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain);
+    osc.start(now);
+    osc.stop(now + 0.03);
   }
 
   private playTone(freq: number, startTime: number, duration: number, vol: number): void {
@@ -153,7 +190,7 @@ export class SoundManager {
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
 
-    osc.type = 'triangle';
+    osc.type = 'sine';
     osc.frequency.setValueAtTime(freq, startTime);
 
     gain.gain.setValueAtTime(vol, startTime);
@@ -166,11 +203,12 @@ export class SoundManager {
     osc.stop(startTime + duration + 0.01);
   }
 
-  private playNoise(duration: number, volume: number, filterFreq: number): void {
+  private playBandpassNoise(duration: number, volume: number, centerFreq: number, Q: number): void {
     if (!this.ctx || !this.masterGain) return;
     const now = this.ctx.currentTime;
 
-    const bufferSize = this.ctx.sampleRate * duration;
+    const bufferSize = Math.floor(this.ctx.sampleRate * duration);
+    if (bufferSize <= 0) return;
     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
     const data = buffer.getChannelData(0);
     for (let i = 0; i < bufferSize; i++) {
@@ -181,8 +219,9 @@ export class SoundManager {
     noise.buffer = buffer;
 
     const filter = this.ctx.createBiquadFilter();
-    filter.type = 'lowpass';
-    filter.frequency.setValueAtTime(filterFreq, now);
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(centerFreq, now);
+    filter.Q.setValueAtTime(Q, now);
 
     const gain = this.ctx.createGain();
     gain.gain.setValueAtTime(volume, now);

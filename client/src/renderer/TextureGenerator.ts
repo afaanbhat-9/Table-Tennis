@@ -164,7 +164,7 @@ export class TextureGenerator {
   }
 
   /**
-   * Generates vibrant ITTF royal purple table texture with crisp white boundary lines.
+   * Generates vibrant tournament cyan/turquoise blue table texture with crisp white boundary lines.
    */
   public static createTableTexture(): THREE.CanvasTexture {
     const canvas = document.createElement('canvas');
@@ -172,11 +172,11 @@ export class TextureGenerator {
     canvas.height = 2048;
     const ctx = canvas.getContext('2d')!;
 
-    // Royal competition purple gradient
+    // Tournament cyan/turquoise blue gradient matching reference
     const gradient = ctx.createLinearGradient(0, 0, 1024, 2048);
-    gradient.addColorStop(0, '#663399');
-    gradient.addColorStop(0.5, '#733aab');
-    gradient.addColorStop(1, '#5f2e8f');
+    gradient.addColorStop(0, '#008ba3');
+    gradient.addColorStop(0.5, '#00a3be');
+    gradient.addColorStop(1, '#007a91');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 1024, 2048);
 

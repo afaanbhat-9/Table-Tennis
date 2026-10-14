@@ -28,23 +28,23 @@ export class TableMesh {
     );
 
     const tableTexture = TextureGenerator.createTableTexture();
-    const purpleSideMat = new THREE.MeshStandardMaterial({
-      color: 0x623296,
+    const tableSideMat = new THREE.MeshStandardMaterial({
+      color: 0x007a91,
       roughness: 0.38,
       metalness: 0.05
     });
 
     const materials: THREE.Material[] = [
-      purpleSideMat, // right (+X)
-      purpleSideMat, // left (-X)
+      tableSideMat, // right (+X)
+      tableSideMat, // left (-X)
       new THREE.MeshStandardMaterial({
         map: tableTexture,
         roughness: 0.35,
         metalness: 0.04
       }), // top (+Y)
       new THREE.MeshStandardMaterial({ color: 0x1f1f22, roughness: 0.85 }), // bottom (-Y)
-      purpleSideMat, // front (+Z)
-      purpleSideMat  // back (-Z)
+      tableSideMat, // front (+Z)
+      tableSideMat  // back (-Z)
     ];
 
     const tableTop = new THREE.Mesh(topGeometry, materials);
@@ -76,13 +76,13 @@ export class TableMesh {
       this.group.add(cap);
     }
 
-    // 3. Table Apron / Under-frame (matte slate metallic frame under top)
+    // 3. Table Apron / Under-frame (crisp anodized silver metallic frame under top)
     const apronDepth = 0.05;
     const apronThickness = 0.022;
     const apronMat = new THREE.MeshStandardMaterial({
-      color: 0x3d424d,
-      roughness: 0.45,
-      metalness: 0.6
+      color: 0xd1d7e0,
+      roughness: 0.3,
+      metalness: 0.75
     });
 
     // Left & Right aprons

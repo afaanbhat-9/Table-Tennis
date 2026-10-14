@@ -233,8 +233,8 @@ export class InputController {
     // 1. Update swing state machine
     this.swingState.update(dt);
 
-    // 2. Base paddle tracking (smoothly moves towards targetPos)
-    const smoothing = Math.min(1.0, 36 * dt);
+    // 2. Base paddle tracking (instant responsive 1:1 feel with smooth anti-jitter)
+    const smoothing = Math.min(1.0, 60 * dt);
     const cur = this.currentPaddle.pos;
     const prevX = cur.x;
     const prevY = cur.y;
