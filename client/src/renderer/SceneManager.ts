@@ -70,9 +70,9 @@ export class SceneManager {
   }
 
   public resetCamera(): void {
-    // Zoomed out view (~18%) with natural elevated perspective
-    this.camera.position.set(0, 1.48, 2.88);
-    this.camera.lookAt(0, 0.74, -0.45);
+    // Zoomed out elevated three-quarter view with clear visibility of entire table, net, and opponent
+    this.camera.position.set(0, 1.58, 3.05);
+    this.camera.lookAt(0, 0.75, -0.35);
   }
 
   private setupResize(): void {

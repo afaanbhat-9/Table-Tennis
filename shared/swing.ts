@@ -61,6 +61,26 @@ export class SwingState {
     return true;
   }
 
+  /**
+   * Triggers an immediate forward strike animation upon ball contact.
+   */
+  public triggerHitSwing(direction?: Vector3D, strength: number = 0.75): void {
+    this.phase = 'forward';
+    this.timer = 0;
+    this.strength = Math.max(0.4, Math.min(1.0, strength));
+    const dirZ = this.isPlayer1 ? -1 : 1;
+    if (direction) {
+      const len = Math.hypot(direction.x, direction.y, direction.z || dirZ) || 1;
+      this.direction = {
+        x: direction.x / len,
+        y: direction.y / len,
+        z: direction.z ? direction.z / len : dirZ
+      };
+    } else {
+      this.direction = { x: 0, y: 0.15, z: dirZ };
+    }
+  }
+
   public reset(): void {
     this.phase = 'idle';
     this.timer = 0;

@@ -187,19 +187,24 @@ export class GameRoom {
 
     if (this.phase === 'serving') {
       this.processPlayerInputs(PHYSICS_DT);
-      this.phaseTimer -= PHYSICS_DT;
+      const stepRes = this.physics.step(PHYSICS_DT, SUB_STEPS);
+      for (const snd of stepRes.soundEvents) {
+        this.recentSoundEvents.push(snd);
+      }
 
-      // Check if server swung and struck the ball into play
+      // Check if server struck the ball into play
       if (this.physics.ball.active) {
         this.phase = 'in_play';
-        this.recentSoundEvents.push({ type: 'paddle_hit', intensity: 0.85 });
-      } else if (this.phaseTimer <= 0) {
-        // Assist auto-serve if countdown timer expired without player swing
-        const server = this.rules.serve.server;
-        const targetX = (Math.random() - 0.5) * 0.4;
-        this.physics.launchServe(server, targetX);
-        this.phase = 'in_play';
-        this.recentSoundEvents.push({ type: 'paddle_hit', intensity: 0.8 });
+      } else {
+        this.phaseTimer -= PHYSICS_DT;
+        if (this.phaseTimer <= 0) {
+          // Assist auto-serve if countdown timer expired without player strike
+          const server = this.rules.serve.server;
+          const targetX = (Math.random() - 0.5) * 0.4;
+          this.physics.launchServe(server, targetX);
+          this.phase = 'in_play';
+          this.recentSoundEvents.push({ type: 'paddle_hit', intensity: 0.85 });
+        }
       }
       return;
     }

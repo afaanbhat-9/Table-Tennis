@@ -14,7 +14,8 @@
     "test:game": "tsx tests/game.test.ts",
     "test:swing": "tsx tests/swing.test.ts",
     "test:multiplayer": "tsx tests/multiplayer.test.ts",
-    "test": "tsx tests/game.test.ts && tsx tests/swing.test.ts && tsx tests/multiplayer.test.ts",
+    "test:rally": "tsx tests/rally.test.ts",
+    "test": "tsx tests/game.test.ts && tsx tests/swing.test.ts && tsx tests/rally.test.ts && tsx tests/multiplayer.test.ts",
     "start": "node dist/server/server/src/index.js"
   },
   "dependencies": {

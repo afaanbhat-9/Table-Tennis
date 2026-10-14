@@ -77,6 +77,26 @@ class GameApp {
 
     this.setupNetworkCallbacks();
     this.startAnimationLoop();
+
+    // Check URL parameters for direct match start or deep linking
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('mode') === 'singleplayer') {
+      const diff = (params.get('diff') as AIDifficulty) || 'medium';
+      this.startSinglePlayer(diff);
+    } else if (params.get('modal') === 'difficulty') {
+      document.getElementById('modal-main-menu')!.style.display = 'none';
+      document.getElementById('modal-cpu-difficulty')!.style.display = 'flex';
+    } else if (params.get('modal') === 'party') {
+      document.getElementById('modal-main-menu')!.style.display = 'none';
+      document.getElementById('modal-party')!.style.display = 'flex';
+      this.uiManager.setPartyTab('create');
+    } else if (params.get('party')) {
+      const code = params.get('party')!;
+      document.getElementById('modal-main-menu')!.style.display = 'none';
+      document.getElementById('modal-party')!.style.display = 'flex';
+      this.uiManager.setPartyTab('join');
+      (document.getElementById('input-party-code') as HTMLInputElement).value = code;
+    }
   }
 
   private setupNetworkCallbacks(): void {
@@ -219,7 +239,7 @@ class GameApp {
 
     // 1. Update player paddle from input
     const input = this.inputController.update(dt);
-    this.spPhysics.paddle1.pos = { ...this.inputController.currentPaddle.pos };
+    this.spPhysics.paddle1.pos = { x: input.targetPos.x, y: input.targetPos.y, z: input.targetPos.z };
     this.spPhysics.paddle1.vel = { ...this.inputController.currentPaddle.vel };
     this.spPhysics.paddle1.rot = { ...this.inputController.currentPaddle.rot };
     this.spPhysics.paddle1.isSwinging = this.inputController.currentPaddle.isSwinging;
@@ -230,11 +250,20 @@ class GameApp {
 
     // 3. State handling
     if (this.spPhase === 'serving') {
-      // Check if server swung and struck the ball into play
+      const stepRes = this.spPhysics.step(dt, SUB_STEPS);
+      for (const snd of stepRes.soundEvents) {
+        if (snd.type === 'paddle_hit') {
+          this.soundManager.playPaddleHit(snd.intensity);
+          this.sceneManager.triggerHitEffect(snd.pos);
+          if (this.spRules.serve.server === 'player1') {
+            this.inputController.triggerHitSwing();
+          }
+        }
+      }
+
+      // Check if server struck the ball into play
       if (this.spPhysics.ball.active) {
         this.spPhase = 'in_play';
-        this.soundManager.playPaddleHit(0.85);
-        this.sceneManager.triggerHitEffect(this.spPhysics.ball.pos);
       } else {
         this.spPhaseTimer -= dt;
         if (this.spPhaseTimer <= 0) {
@@ -265,6 +294,9 @@ class GameApp {
         if (snd.type === 'paddle_hit') {
           this.soundManager.playPaddleHit(snd.intensity);
           this.sceneManager.triggerHitEffect(snd.pos);
+          if (this.spPhysics.ball.lastHitter === 'player1') {
+            this.inputController.triggerHitSwing();
+          }
         } else if (snd.type === 'table_hit') {
           this.soundManager.playTableBounce(snd.intensity);
           this.sceneManager.triggerHitEffect(snd.pos);

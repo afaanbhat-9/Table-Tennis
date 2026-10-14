@@ -219,14 +219,25 @@ export class InputController {
     return success;
   }
 
+  /**
+   * Triggers an immediate forward strike followthrough animation upon ball contact.
+   */
+  public triggerHitSwing(direction?: Vector3D, strength: number = 0.75): void {
+    this.swingState.triggerHitSwing(direction, strength);
+    if (this.onSwingTriggered) {
+      this.onSwingTriggered(this.swingState.strength, this.swingState.direction);
+    }
+  }
+
   public update(dt: number): PlayerInput {
     // 1. Update swing state machine
     this.swingState.update(dt);
 
     // 2. Base paddle tracking (smoothly moves towards targetPos)
-    const smoothing = Math.min(1.0, 26 * dt);
+    const smoothing = Math.min(1.0, 36 * dt);
     const cur = this.currentPaddle.pos;
-    const prev = { ...cur };
+    const prevX = cur.x;
+    const prevY = cur.y;
 
     cur.x += (this.targetPos.x - cur.x) * smoothing;
     cur.y += (this.targetPos.y - cur.y) * smoothing;
@@ -238,8 +249,8 @@ export class InputController {
     const effectiveY = cur.y + this.swingState.offset.y;
 
     // 4. Calculate total paddle velocity (tracking velocity + swing velocity)
-    const trackingVx = dt > 0.0001 ? (cur.x - prev.x) / dt : 0;
-    const trackingVy = dt > 0.0001 ? (cur.y - prev.y) / dt : 0;
+    const trackingVx = dt > 0.0001 ? (cur.x - prevX) / dt : 0;
+    const trackingVy = dt > 0.0001 ? (cur.y - prevY) / dt : 0;
 
     this.currentPaddle.vel = {
       x: trackingVx + this.swingState.velocity.x,

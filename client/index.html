@@ -2,9 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Table Tennis 3D - Online Multiplayer & AI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Spin Master 3D - Arcade Table Tennis & Online Multiplayer</title>
   <style>
+    :root {
+      --primary-gradient: linear-gradient(135deg, #2563eb, #1d4ed8);
+      --primary-hover: linear-gradient(135deg, #3b82f6, #2563eb);
+      --success-gradient: linear-gradient(135deg, #059669, #047857);
+      --success-hover: linear-gradient(135deg, #10b981, #059669);
+      --danger-gradient: linear-gradient(135deg, #dc2626, #b91c1c);
+      --danger-hover: linear-gradient(135deg, #ef4444, #dc2626);
+      --card-bg: rgba(22, 27, 38, 0.88);
+      --border-subtle: rgba(255, 255, 255, 0.12);
+      --accent-gold: #ffc837;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
     * {
       box-sizing: border-box;
       margin: 0;
@@ -17,7 +31,7 @@
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background-color: #22252a;
+      background-color: #0d1117;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
       touch-action: none;
     }
@@ -31,7 +45,7 @@
       z-index: 1;
     }
 
-    /* TOP HUD (Matching Reference Image) */
+    /* MATCH HUD OVERLAY */
     #hud-overlay {
       position: absolute;
       top: 0;
@@ -43,84 +57,94 @@
       display: none;
     }
 
-    /* Flip-card Scoreboard matching reference image */
+    /* Broadcast Style Top Scoreboard */
     .scoreboard-container {
       position: absolute;
-      top: 14px;
+      top: 16px;
       left: 50%;
       transform: translateX(-50%);
       display: flex;
       align-items: center;
-      background: rgba(20, 20, 25, 0.45);
-      backdrop-filter: blur(8px);
-      border-radius: 8px;
-      padding: 4px 10px;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-radius: 12px;
+      padding: 6px 14px;
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
       pointer-events: auto;
     }
 
     .player-badge {
       display: flex;
       align-items: center;
-      gap: 8px;
-      padding: 0 10px;
+      gap: 10px;
+      padding: 0 12px;
     }
 
     .flag-icon {
       font-size: 26px;
-      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
     }
 
     .player-name-label {
       color: #ffffff;
-      font-weight: 700;
-      font-size: 13px;
-      letter-spacing: 0.5px;
-      max-width: 90px;
+      font-weight: 800;
+      font-size: 14px;
+      letter-spacing: 0.8px;
+      max-width: 140px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      text-transform: uppercase;
     }
 
     .serve-indicator {
       display: inline-block;
-      width: 8px;
-      height: 8px;
+      width: 10px;
+      height: 10px;
       border-radius: 50%;
-      background: #ffdf4a;
-      box-shadow: 0 0 8px #ffdf4a;
+      background: var(--accent-gold);
+      box-shadow: 0 0 10px var(--accent-gold), 0 0 20px rgba(255, 200, 55, 0.6);
       opacity: 0;
-      transition: opacity 0.2s ease;
+      transform: scale(0.6);
+      transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
     }
 
     .serve-indicator.active {
       opacity: 1;
+      transform: scale(1);
+      animation: pulseServe 1.6s infinite ease-in-out;
+    }
+
+    @keyframes pulseServe {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 8px var(--accent-gold); }
+      50% { transform: scale(1.3); box-shadow: 0 0 16px var(--accent-gold), 0 0 24px rgba(255, 200, 55, 0.8); }
     }
 
     .score-cards-wrapper {
       display: flex;
       align-items: center;
-      gap: 4px;
-      background: #111317;
-      border-radius: 6px;
-      padding: 2px 4px;
-      box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.6);
+      gap: 6px;
+      background: #090d14;
+      border-radius: 8px;
+      padding: 3px 6px;
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.8);
     }
 
     .flip-card {
-      width: 36px;
-      height: 44px;
-      background: #ffffff;
-      color: #111317;
-      border-radius: 4px;
+      width: 40px;
+      height: 48px;
+      background: linear-gradient(180deg, #ffffff 0%, #e2e8f0 100%);
+      color: #0f172a;
+      border-radius: 6px;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 28px;
+      font-size: 30px;
       font-weight: 900;
       font-family: 'Impact', 'Arial Black', sans-serif;
-      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
       position: relative;
     }
 
@@ -130,15 +154,15 @@
       top: 50%;
       left: 0;
       width: 100%;
-      height: 1px;
-      background: rgba(0, 0, 0, 0.2);
+      height: 1.5px;
+      background: rgba(0, 0, 0, 0.25);
     }
 
-    /* Top-right Circular Buttons matching reference image */
+    /* Top-right Action Buttons */
     .top-actions {
       position: absolute;
-      top: 14px;
-      right: 18px;
+      top: 16px;
+      right: 20px;
       display: flex;
       gap: 12px;
       pointer-events: auto;
@@ -148,43 +172,45 @@
       width: 44px;
       height: 44px;
       border-radius: 50%;
-      background: radial-gradient(circle at 35% 35%, #9e4b4b, #592525);
-      border: 2px solid rgba(255, 255, 255, 0.35);
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(8px);
+      border: 1px solid var(--border-subtle);
       color: #ffffff;
       display: flex;
       align-items: center;
       justify-content: center;
       font-size: 18px;
       cursor: pointer;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255,255,255,0.4);
-      transition: all 0.15s ease;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       outline: none;
     }
 
     .circle-btn:hover {
-      transform: scale(1.06);
-      background: radial-gradient(circle at 35% 35%, #b55757, #6e2e2e);
+      transform: scale(1.08);
+      background: rgba(30, 41, 59, 0.95);
+      border-color: rgba(255, 255, 255, 0.25);
     }
 
     .circle-btn:active {
-      transform: scale(0.95);
+      transform: scale(0.92);
     }
 
-    /* Banner Overlay: Countdown, Point Announcements */
+    /* Match Announcements (Points, Deuce, Victory) */
     #announcement-banner {
       position: absolute;
-      top: 35%;
+      top: 36%;
       left: 50%;
-      transform: translate(-50%, -50%);
+      transform: translate(-50%, -50%) scale(0.9);
       font-family: 'Impact', 'Arial Black', sans-serif;
-      font-size: 48px;
-      color: #ffea79;
-      text-shadow: 0 4px 12px rgba(0, 0, 0, 0.8), 0 0 20px rgba(255, 215, 0, 0.4);
-      letter-spacing: 2px;
+      font-size: 52px;
+      color: #ffdf4a;
+      text-shadow: 0 4px 16px rgba(0, 0, 0, 0.9), 0 0 30px rgba(255, 215, 0, 0.5);
+      letter-spacing: 2.5px;
       pointer-events: none;
       text-align: center;
       opacity: 0;
-      transition: opacity 0.2s ease, transform 0.2s ease;
+      transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
       z-index: 15;
     }
 
@@ -193,8 +219,9 @@
       color: #ffffff;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       font-weight: 700;
-      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
       margin-top: 6px;
+      letter-spacing: 1px;
     }
 
     #announcement-banner.visible {
@@ -202,14 +229,15 @@
       transform: translate(-50%, -50%) scale(1.05);
     }
 
-    /* Bottom Info / Ping */
+    /* Bottom HUD Footers & Tips */
     .hud-footer {
       position: absolute;
-      bottom: 12px;
-      right: 16px;
-      color: rgba(255, 255, 255, 0.6);
+      bottom: 14px;
+      right: 18px;
+      color: rgba(255, 255, 255, 0.5);
       font-size: 12px;
-      font-weight: 600;
+      font-weight: 700;
+      letter-spacing: 0.5px;
       pointer-events: none;
     }
 
@@ -218,15 +246,15 @@
       bottom: 18px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(18, 22, 29, 0.78);
-      backdrop-filter: blur(8px);
-      padding: 7px 16px;
-      border-radius: 20px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(10px);
+      padding: 8px 20px;
+      border-radius: 24px;
       color: #e2e8f0;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 600;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
       pointer-events: none;
       transition: opacity 0.4s ease;
       white-space: nowrap;
@@ -234,37 +262,38 @@
 
     .hud-swing-badge {
       position: absolute;
-      bottom: 54px;
+      bottom: 58px;
       left: 50%;
       transform: translateX(-50%);
-      background: linear-gradient(135deg, #7846b8, #5a2e94);
-      color: #ffea79;
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      color: #ffffff;
       font-size: 11px;
       font-weight: 800;
-      letter-spacing: 1px;
+      letter-spacing: 1.2px;
       text-transform: uppercase;
-      padding: 4px 12px;
-      border-radius: 12px;
+      padding: 5px 14px;
+      border-radius: 14px;
       opacity: 0;
-      transition: opacity 0.12s ease, transform 0.12s ease;
+      transition: opacity 0.15s ease, transform 0.15s ease;
       pointer-events: none;
-      box-shadow: 0 2px 8px rgba(120, 70, 184, 0.5);
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.5);
     }
 
     .hud-swing-badge.active {
       opacity: 1;
-      transform: translateX(-50%) scale(1.08);
+      transform: translateX(-50%) scale(1.06);
     }
 
-    /* MENUS & MODALS */
+    /* MODALS & MENUS */
     .modal-backdrop {
       position: absolute;
       top: 0;
       left: 0;
       width: 100%;
       height: 100%;
-      background: rgba(15, 18, 24, 0.82);
-      backdrop-filter: blur(10px);
+      background: radial-gradient(circle at center, rgba(15, 23, 42, 0.75) 0%, rgba(9, 13, 20, 0.92) 100%);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       z-index: 30;
       display: flex;
       align-items: center;
@@ -273,155 +302,228 @@
     }
 
     .modal-card {
-      background: #1e222b;
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      border-radius: 16px;
+      background: var(--card-bg);
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
       width: 100%;
       max-width: 480px;
-      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.7), 0 0 40px rgba(37, 99, 235, 0.15);
       overflow: hidden;
-      color: #f1f3f7;
-      animation: modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      color: var(--text-main);
+      animation: modalFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     @keyframes modalFadeIn {
-      from { opacity: 0; transform: scale(0.94); }
-      to { opacity: 1; transform: scale(1); }
+      from { opacity: 0; transform: scale(0.92) translateY(10px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
     }
 
-    .modal-header {
-      padding: 24px 28px 16px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    /* Original Brand & Logo Styling */
+    .brand-header {
+      padding: 30px 24px 20px;
       text-align: center;
+      background: linear-gradient(180deg, rgba(37, 99, 235, 0.12) 0%, transparent 100%);
+      border-bottom: 1px solid var(--border-subtle);
     }
 
-    .modal-title {
-      font-size: 28px;
+    .brand-eyebrow {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 2px;
+      color: var(--accent-gold);
+      background: rgba(255, 200, 55, 0.12);
+      border: 1px solid rgba(255, 200, 55, 0.3);
+      padding: 3px 12px;
+      border-radius: 12px;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    .game-logo {
+      font-size: 36px;
       font-weight: 900;
-      letter-spacing: 0.5px;
+      letter-spacing: 1px;
       color: #ffffff;
       text-transform: uppercase;
       font-family: 'Impact', 'Arial Black', sans-serif;
+      text-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+      line-height: 1.1;
     }
 
-    .modal-subtitle {
-      font-size: 14px;
-      color: #a0a6b5;
-      margin-top: 4px;
+    .logo-accent {
+      color: #38bdf8;
+      text-shadow: 0 0 20px rgba(56, 189, 248, 0.6);
+    }
+
+    .logo-subtitle {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 6px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
     }
 
     .modal-body {
-      padding: 24px 28px;
+      padding: 24px;
       display: flex;
       flex-direction: column;
-      gap: 16px;
+      gap: 14px;
     }
 
+    /* Buttons */
     .btn {
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 10px;
+      gap: 12px;
       width: 100%;
-      padding: 14px 20px;
+      padding: 15px 20px;
       font-size: 16px;
       font-weight: 700;
-      border-radius: 10px;
+      border-radius: 12px;
       border: none;
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
       color: #ffffff;
       outline: none;
+      position: relative;
+      overflow: hidden;
     }
 
     .btn:active {
-      transform: scale(0.98);
+      transform: scale(0.97);
     }
 
-    .btn-primary {
-      background: linear-gradient(135deg, #7846b8, #5a2e94);
-      box-shadow: 0 4px 16px rgba(120, 70, 184, 0.4);
+    .btn-hero-primary {
+      background: var(--primary-gradient);
+      box-shadow: 0 6px 20px rgba(37, 99, 235, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.2);
     }
 
-    .btn-primary:hover {
-      background: linear-gradient(135deg, #8751ce, #6434a3);
+    .btn-hero-primary:hover {
+      background: var(--primary-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(37, 99, 235, 0.6);
     }
 
-    .btn-success {
-      background: linear-gradient(135deg, #1f9457, #136a3c);
-      box-shadow: 0 4px 16px rgba(31, 148, 87, 0.4);
+    .btn-hero-success {
+      background: var(--success-gradient);
+      box-shadow: 0 6px 20px rgba(5, 150, 105, 0.45);
+      border: 1px solid rgba(255, 255, 255, 0.2);
     }
 
-    .btn-success:hover {
-      background: linear-gradient(135deg, #27ad67, #177a45);
+    .btn-hero-success:hover {
+      background: var(--success-hover);
+      transform: translateY(-2px);
+      box-shadow: 0 8px 25px rgba(5, 150, 105, 0.6);
     }
 
     .btn-secondary {
-      background: #2b303c;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid var(--border-subtle);
+      color: #cbd5e1;
     }
 
     .btn-secondary:hover {
-      background: #363c4a;
+      background: rgba(51, 65, 85, 0.9);
+      color: #ffffff;
     }
 
     .btn-danger {
-      background: linear-gradient(135deg, #c73636, #911e1e);
+      background: var(--danger-gradient);
+      box-shadow: 0 4px 14px rgba(220, 38, 38, 0.4);
     }
 
     .btn-danger:hover {
-      background: linear-gradient(135deg, #dc4141, #a82323);
+      background: var(--danger-hover);
     }
 
     .btn:disabled {
-      opacity: 0.45;
+      opacity: 0.4;
       cursor: not-allowed;
-      transform: none;
+      transform: none !important;
+    }
+
+    .btn-btn-badge {
+      font-size: 11px;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.2);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* Control Scheme Guidance Pill */
+    .controls-pill-card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .controls-pill-icon {
+      font-size: 20px;
+    }
+
+    .controls-pill-text {
+      font-size: 12px;
+      line-height: 1.4;
+      color: var(--text-muted);
+    }
+
+    .controls-pill-text strong {
+      color: #f1f5f9;
     }
 
     /* Form Inputs */
     .input-field {
       width: 100%;
-      background: #14171d;
-      border: 1.5px solid rgba(255, 255, 255, 0.12);
-      border-radius: 8px;
-      padding: 12px 14px;
+      background: #090d14;
+      border: 1.5px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 14px;
       font-size: 16px;
       color: #ffffff;
       outline: none;
-      transition: border-color 0.2s ease;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
 
     .input-field:focus {
-      border-color: #7846b8;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
     }
 
     .code-display {
-      font-family: monospace;
-      font-size: 32px;
-      font-weight: 800;
-      letter-spacing: 6px;
-      color: #ffea79;
-      background: #14171d;
-      border: 2px dashed #7846b8;
-      border-radius: 10px;
-      padding: 12px 20px;
+      font-family: 'SF Mono', Consolas, Monaco, monospace;
+      font-size: 34px;
+      font-weight: 900;
+      letter-spacing: 8px;
+      color: var(--accent-gold);
+      background: #090d14;
+      border: 2px dashed #3b82f6;
+      border-radius: 12px;
+      padding: 14px 20px;
       text-align: center;
       cursor: pointer;
-      position: relative;
+      transition: background 0.2s ease;
     }
 
     .code-display:hover {
-      background: #1b1f28;
+      background: #111827;
     }
 
     /* Tabs */
     .tabs-nav {
       display: flex;
       gap: 8px;
-      background: #14171d;
+      background: #090d14;
       padding: 4px;
-      border-radius: 10px;
+      border-radius: 12px;
     }
 
     .tab-btn {
@@ -429,18 +531,18 @@
       padding: 10px;
       background: transparent;
       border: none;
-      color: #8b92a3;
+      color: var(--text-muted);
       font-weight: 700;
       font-size: 14px;
-      border-radius: 6px;
+      border-radius: 8px;
       cursor: pointer;
       transition: all 0.2s ease;
     }
 
     .tab-btn.active {
-      background: #2b303c;
+      background: #1e293b;
       color: #ffffff;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
     }
 
     /* Lobby Player Slots */
@@ -454,10 +556,10 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 12px 16px;
-      background: #14171d;
-      border-radius: 8px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 14px 16px;
+      background: #090d14;
+      border-radius: 10px;
+      border: 1px solid var(--border-subtle);
     }
 
     .slot-player-info {
@@ -468,16 +570,17 @@
 
     .slot-status-pill {
       font-size: 12px;
-      font-weight: 700;
-      padding: 4px 10px;
+      font-weight: 800;
+      padding: 4px 12px;
       border-radius: 20px;
       text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
 
     .status-ready {
-      background: rgba(31, 148, 87, 0.25);
-      color: #4ade80;
-      border: 1px solid #1f9457;
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid #059669;
     }
 
     .status-waiting {
@@ -494,33 +597,36 @@
     }
 
     .diff-card {
-      background: #14171d;
-      border: 2px solid rgba(255, 255, 255, 0.08);
-      border-radius: 10px;
-      padding: 12px 8px;
+      background: #090d14;
+      border: 2px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 14px 10px;
       text-align: center;
       cursor: pointer;
-      transition: all 0.15s ease;
+      transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     }
 
     .diff-card:hover {
       border-color: rgba(255, 255, 255, 0.3);
+      transform: translateY(-2px);
     }
 
     .diff-card.selected {
-      border-color: #7846b8;
-      background: rgba(120, 70, 184, 0.18);
+      border-color: #3b82f6;
+      background: rgba(59, 130, 246, 0.15);
+      box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
     }
 
     .diff-title {
       font-weight: 800;
-      font-size: 15px;
+      font-size: 16px;
       margin-bottom: 4px;
     }
 
     .diff-desc {
       font-size: 11px;
-      color: #8b92a3;
+      color: var(--text-muted);
+      line-height: 1.3;
     }
 
     /* Notification Toast */
@@ -528,23 +634,35 @@
       position: absolute;
       bottom: 24px;
       left: 50%;
-      transform: translateX(-50%);
-      background: #1b2029;
+      transform: translateX(-50%) translateY(10px);
+      background: #1e293b;
       color: #ffffff;
-      padding: 10px 22px;
+      padding: 12px 26px;
       border-radius: 30px;
       font-size: 14px;
-      font-weight: 600;
-      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-      border: 1px solid rgba(255,255,255,0.15);
+      font-weight: 700;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      border: 1px solid var(--border-subtle);
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.25s ease;
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
       z-index: 100;
     }
 
     #toast-msg.show {
       opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 600px) {
+      .game-logo { font-size: 28px; }
+      .scoreboard-container { top: 10px; padding: 4px 10px; }
+      .player-name-label { max-width: 70px; font-size: 12px; }
+      .flip-card { width: 32px; height: 38px; font-size: 24px; }
+      .top-actions { top: 10px; right: 12px; gap: 8px; }
+      .circle-btn { width: 38px; height: 38px; font-size: 15px; }
+      .hud-tip-banner { font-size: 11px; padding: 6px 14px; bottom: 12px; }
     }
   </style>
 </head>
@@ -552,14 +670,14 @@
   <!-- 3D WebGL Canvas Container -->
   <div id="game-container"></div>
 
-  <!-- In-Game HUD (Matching Reference Image) -->
+  <!-- IN-GAME HUD -->
   <div id="hud-overlay">
-    <!-- Top Center Scoreboard -->
+    <!-- Top Center Broadcast Scoreboard -->
     <div class="scoreboard-container">
       <div class="player-badge">
         <span id="hud-flag-p1" class="flag-icon">🇹🇷</span>
         <span id="hud-name-p1" class="player-name-label">YOU</span>
-        <span id="hud-serve-p1" class="serve-indicator active"></span>
+        <span id="hud-serve-p1" class="serve-indicator active" title="Serving"></span>
       </div>
 
       <div class="score-cards-wrapper">
@@ -568,13 +686,13 @@
       </div>
 
       <div class="player-badge">
-        <span id="hud-serve-p2" class="serve-indicator"></span>
+        <span id="hud-serve-p2" class="serve-indicator" title="Serving"></span>
         <span id="hud-name-p2" class="player-name-label">CPU</span>
         <span id="hud-flag-p2" class="flag-icon">🤖</span>
       </div>
     </div>
 
-    <!-- Top Right Circular Buttons -->
+    <!-- Top Right Circular Action Buttons -->
     <div class="top-actions">
       <button id="btn-pause" class="circle-btn" title="Pause Game">
         <span>❚❚</span>
@@ -584,17 +702,17 @@
       </button>
     </div>
 
-    <!-- Mid-screen announcements -->
+    <!-- Mid-screen Banner for Ready, Points, Deuce, Game Over -->
     <div id="announcement-banner">
       <div id="announcement-text">READY</div>
       <div id="announcement-sub"></div>
     </div>
 
-    <!-- Active Swing Feedback Badge -->
-    <div id="hud-swing-badge" class="hud-swing-badge">SWING STRIKE!</div>
+    <!-- Hit & Swing Feedback Badge -->
+    <div id="hud-swing-badge" class="hud-swing-badge">SMASH!</div>
 
     <!-- Unobtrusive Control Tip Banner -->
-    <div id="hud-control-tip" class="hud-tip-banner">💡 Move to position • Quick flick or Click to swing!</div>
+    <div id="hud-control-tip" class="hud-tip-banner">💡 Position racket in ball path to hit • Swipe for power & angle!</div>
 
     <!-- Footer info -->
     <div class="hud-footer">
@@ -606,19 +724,32 @@
   <!-- MAIN MENU MODAL -->
   <div id="modal-main-menu" class="modal-backdrop">
     <div class="modal-card">
-      <div class="modal-header">
-        <div class="modal-title">Table Tennis 3D</div>
-        <div class="modal-subtitle">Fast-Paced 3D Table Tennis & Online Multiplayer</div>
+      <div class="brand-header">
+        <div class="brand-eyebrow">ITTF TOURNAMENT 3D</div>
+        <h1 class="game-logo">SPIN MASTER <span class="logo-accent">3D</span></h1>
+        <div class="logo-subtitle">Arcade Table Tennis Tour & Private Multiplayer</div>
       </div>
       <div class="modal-body">
-        <button id="btn-menu-vs-cpu" class="btn btn-primary">
+        <button id="btn-menu-vs-cpu" class="btn btn-hero-primary">
           <span>🤖 Play vs Computer</span>
+          <span class="btn-btn-badge">AI Match</span>
         </button>
-        <button id="btn-menu-party" class="btn btn-success">
-          <span>👥 Play with Friends (Party Code)</span>
+
+        <button id="btn-menu-party" class="btn btn-hero-success">
+          <span>👥 Play with Friends</span>
+          <span class="btn-btn-badge">Party Code</span>
         </button>
+
+        <!-- Controls Overview Pill -->
+        <div class="controls-pill-card">
+          <div class="controls-pill-icon">🎮</div>
+          <div class="controls-pill-text">
+            <strong>Intuitive Controls:</strong> Move mouse or drag finger to position racket. Shots return automatically upon contact. Fast swipes add power and spin!
+          </div>
+        </div>
+
         <button id="btn-menu-how-to-play" class="btn btn-secondary">
-          <span>📖 How to Play</span>
+          <span>📖 How to Play & Rules</span>
         </button>
       </div>
     </div>
@@ -627,31 +758,32 @@
   <!-- CPU DIFFICULTY SELECTOR MODAL -->
   <div id="modal-cpu-difficulty" class="modal-backdrop" style="display: none;">
     <div class="modal-card">
-      <div class="modal-header">
-        <div class="modal-title">Select Difficulty</div>
-        <div class="modal-subtitle">Choose your AI opponent level</div>
+      <div class="brand-header">
+        <div class="brand-eyebrow">OPPONENT SELECT</div>
+        <div class="game-logo" style="font-size: 28px;">Select Difficulty</div>
+        <div class="logo-subtitle">Choose your AI tournament challenge</div>
       </div>
       <div class="modal-body">
         <div class="difficulty-grid">
           <div class="diff-card" data-diff="easy">
-            <div class="diff-title" style="color: #4ade80;">Easy</div>
-            <div class="diff-desc">Relaxed pace, wider errors</div>
+            <div class="diff-title" style="color: #4ade80;">Casual</div>
+            <div class="diff-desc">Relaxed pace, forgiving rallies</div>
           </div>
           <div class="diff-card selected" data-diff="medium">
-            <div class="diff-title" style="color: #fbbf24;">Medium</div>
+            <div class="diff-title" style="color: #fbbf24;">Pro</div>
             <div class="diff-desc">Balanced speed & placement</div>
           </div>
           <div class="diff-card" data-diff="hard">
-            <div class="diff-title" style="color: #f87171;">Hard</div>
-            <div class="diff-desc">Fierce spins & sharp returns</div>
+            <div class="diff-title" style="color: #f87171;">Master</div>
+            <div class="diff-desc">Sharp spins & corner drives</div>
           </div>
         </div>
 
-        <button id="btn-start-cpu-game" class="btn btn-primary" style="margin-top: 8px;">
+        <button id="btn-start-cpu-game" class="btn btn-hero-primary" style="margin-top: 6px;">
           <span>Start Match</span>
         </button>
         <button id="btn-back-to-main-from-diff" class="btn btn-secondary">
-          <span>Back</span>
+          <span>Back to Menu</span>
         </button>
       </div>
     </div>
@@ -660,9 +792,10 @@
   <!-- PARTY MULTIPLAYER MODAL -->
   <div id="modal-party" class="modal-backdrop" style="display: none;">
     <div class="modal-card">
-      <div class="modal-header">
-        <div class="modal-title">Play with Friends</div>
-        <div class="modal-subtitle">Private matches strictly via Party Code</div>
+      <div class="brand-header">
+        <div class="brand-eyebrow">PRIVATE MULTIPLAYER</div>
+        <div class="game-logo" style="font-size: 28px;">Play with Friends</div>
+        <div class="logo-subtitle">Private matches strictly via Party Code (2 Players max)</div>
       </div>
       <div class="modal-body">
         <!-- Tabs: Host / Guest -->
@@ -673,13 +806,13 @@
 
         <!-- Player Name Input -->
         <div>
-          <label style="font-size: 13px; color: #a0a6b5; margin-bottom: 4px; display: block;">Your Nickname</label>
+          <label style="font-size: 13px; color: #94a3b8; font-weight: 700; margin-bottom: 6px; display: block;">YOUR NICKNAME</label>
           <input id="input-player-name" class="input-field" type="text" placeholder="Enter nickname" maxlength="16" value="Player 1">
         </div>
 
         <!-- CREATE TAB VIEW -->
         <div id="view-party-create" style="display: flex; flex-direction: column; gap: 14px;">
-          <button id="btn-create-party-action" class="btn btn-primary">
+          <button id="btn-create-party-action" class="btn btn-hero-primary">
             <span>Generate Party Code</span>
           </button>
         </div>
@@ -687,10 +820,10 @@
         <!-- JOIN TAB VIEW -->
         <div id="view-party-join" style="display: none; flex-direction: column; gap: 14px;">
           <div>
-            <label style="font-size: 13px; color: #a0a6b5; margin-bottom: 4px; display: block;">6-Character Party Code</label>
-            <input id="input-party-code" class="input-field" type="text" placeholder="e.g. K8M4X2" maxlength="6" style="text-transform: uppercase; letter-spacing: 3px; font-weight: bold; text-align: center;">
+            <label style="font-size: 13px; color: #94a3b8; font-weight: 700; margin-bottom: 6px; display: block;">6-CHARACTER PARTY CODE</label>
+            <input id="input-party-code" class="input-field" type="text" placeholder="e.g. K8M4X2" maxlength="6" style="text-transform: uppercase; letter-spacing: 4px; font-weight: 900; text-align: center; font-size: 20px;">
           </div>
-          <button id="btn-join-party-action" class="btn btn-success">
+          <button id="btn-join-party-action" class="btn btn-hero-success">
             <span>Join Party</span>
           </button>
         </div>
@@ -698,16 +831,16 @@
         <!-- WAITING LOBBY (Active when party created/joined) -->
         <div id="view-party-lobby" style="display: none; flex-direction: column; gap: 14px;">
           <div style="text-align: center;">
-            <div style="font-size: 12px; color: #a0a6b5; margin-bottom: 4px;">SHARE CODE WITH YOUR FRIEND</div>
+            <div style="font-size: 12px; color: #94a3b8; font-weight: 700; margin-bottom: 6px; letter-spacing: 1px;">SHARE CODE WITH YOUR FRIEND</div>
             <div id="display-party-code" class="code-display" title="Click to copy">------</div>
-            <div style="font-size: 11px; color: #7846b8; margin-top: 4px;">Click code to copy</div>
+            <div style="font-size: 12px; color: #38bdf8; margin-top: 6px; font-weight: 600;">📋 Click code to copy to clipboard</div>
           </div>
 
           <div class="lobby-slots">
             <div class="lobby-slot">
               <div class="slot-player-info">
                 <span class="flag-icon" id="lobby-slot1-flag">🇹🇷</span>
-                <span id="lobby-slot1-name" style="font-weight: 700;">Host</span>
+                <span id="lobby-slot1-name" style="font-weight: 800;">Host</span>
               </div>
               <span id="lobby-slot1-status" class="slot-status-pill status-ready">Ready</span>
             </div>
@@ -715,17 +848,17 @@
             <div class="lobby-slot">
               <div class="slot-player-info">
                 <span class="flag-icon" id="lobby-slot2-flag">🇺🇸</span>
-                <span id="lobby-slot2-name" style="color: #a0a6b5;">Waiting for friend...</span>
+                <span id="lobby-slot2-name" style="color: #94a3b8; font-weight: 600;">Waiting for friend...</span>
               </div>
               <span id="lobby-slot2-status" class="slot-status-pill status-waiting">Empty</span>
             </div>
           </div>
 
-          <div id="lobby-actions" style="display: flex; flex-direction: column; gap: 8px;">
+          <div id="lobby-actions" style="display: flex; flex-direction: column; gap: 10px;">
             <button id="btn-lobby-ready" class="btn btn-secondary">
               <span>Ready Up</span>
             </button>
-            <button id="btn-lobby-start" class="btn btn-primary" style="display: none;" disabled>
+            <button id="btn-lobby-start" class="btn btn-hero-primary" style="display: none;" disabled>
               <span>Start Match (Waiting for players)</span>
             </button>
           </div>
@@ -745,16 +878,18 @@
   <!-- HOW TO PLAY MODAL -->
   <div id="modal-how-to-play" class="modal-backdrop" style="display: none;">
     <div class="modal-card">
-      <div class="modal-header">
-        <div class="modal-title">How to Play</div>
-        <div class="modal-subtitle">Master table tennis controls and rules</div>
+      <div class="brand-header">
+        <div class="brand-eyebrow">GUIDE & RULES</div>
+        <div class="game-logo" style="font-size: 28px;">How to Play</div>
+        <div class="logo-subtitle">Intuitive controls & table tennis rules</div>
       </div>
-      <div class="modal-body" style="font-size: 14px; line-height: 1.6; color: #c4cad4;">
-        <p><strong>🎯 Desktop (Mouse & Trackpad):</strong> Move your mouse or trackpad to position the paddle. Perform a <em>quick directional flick</em> or <em>left-click</em> to swing your paddle! Swing forward for speed, upward for topspin lift, and left/right to steer cross-court.</p>
-        <p><strong>📱 Mobile Controls:</strong> Drag your finger smoothly to position the paddle. Perform a <em>quick finger flick</em> in the desired stroke direction to swing.</p>
-        <p><strong>🏆 ITTF Rules:</strong> The ball must bounce once on your table half before you return it across the net. First to 11 points (win by 2) wins the match!</p>
-        <button id="btn-close-how-to-play" class="btn btn-primary" style="margin-top: 8px;">
-          <span>Got it!</span>
+      <div class="modal-body" style="font-size: 14px; line-height: 1.6; color: #cbd5e1;">
+        <p><strong>🎯 Racket Movement:</strong> Move your mouse or drag your touch finger. The racket follows your position smoothly and accurately across the table baseline.</p>
+        <p><strong>🏓 Automatic Contact:</strong> Simply align the racket with the incoming ball after it bounces on your side. The racket automatically strikes a clean return over the net!</p>
+        <p><strong>⚡ Power & Placement:</strong> Swipe or flick in your desired stroke direction to add topspin, smash speed, or sharp cross-court angles.</p>
+        <p><strong>🏆 Official ITTF Rules:</strong> The ball must bounce once on your half before you hit it. First player to 11 points (win by 2 margin) takes the victory!</p>
+        <button id="btn-close-how-to-play" class="btn btn-hero-primary" style="margin-top: 8px;">
+          <span>Let's Play!</span>
         </button>
       </div>
     </div>
@@ -763,11 +898,11 @@
   <!-- PAUSE MODAL -->
   <div id="modal-pause" class="modal-backdrop" style="display: none;">
     <div class="modal-card">
-      <div class="modal-header">
-        <div class="modal-title">Game Paused</div>
+      <div class="brand-header">
+        <div class="game-logo" style="font-size: 28px;">Game Paused</div>
       </div>
       <div class="modal-body">
-        <button id="btn-resume-game" class="btn btn-primary">
+        <button id="btn-resume-game" class="btn btn-hero-primary">
           <span>Resume Game</span>
         </button>
         <button id="btn-pause-mute" class="btn btn-secondary">
@@ -783,19 +918,19 @@
   <!-- GAME OVER / MATCH WINNER MODAL -->
   <div id="modal-game-over" class="modal-backdrop" style="display: none;">
     <div class="modal-card">
-      <div class="modal-header">
-        <div id="winner-headline" class="modal-title" style="color: #ffdf4a;">VICTORY!</div>
-        <div id="winner-subtitle" class="modal-subtitle">You won the match!</div>
+      <div class="brand-header">
+        <div id="winner-headline" class="game-logo" style="color: var(--accent-gold); font-size: 32px;">VICTORY!</div>
+        <div id="winner-subtitle" class="logo-subtitle">You won the match!</div>
       </div>
       <div class="modal-body" style="text-align: center;">
-        <div style="font-size: 13px; color: #a0a6b5; margin-bottom: 6px;">FINAL SCORE</div>
-        <div style="display: flex; justify-content: center; align-items: center; gap: 16px; margin-bottom: 16px;">
-          <span id="final-score-p1" style="font-size: 44px; font-weight: 900; color: #ffffff;">11</span>
-          <span style="font-size: 28px; color: #7846b8;">-</span>
-          <span id="final-score-p2" style="font-size: 44px; font-weight: 900; color: #ffffff;">8</span>
+        <div style="font-size: 13px; color: #94a3b8; font-weight: 700; margin-bottom: 6px; letter-spacing: 1px;">FINAL MATCH SCORE</div>
+        <div style="display: flex; justify-content: center; align-items: center; gap: 18px; margin-bottom: 16px;">
+          <span id="final-score-p1" style="font-size: 48px; font-weight: 900; color: #ffffff; font-family: 'Impact', sans-serif;">11</span>
+          <span style="font-size: 32px; color: #3b82f6;">-</span>
+          <span id="final-score-p2" style="font-size: 48px; font-weight: 900; color: #ffffff; font-family: 'Impact', sans-serif;">8</span>
         </div>
 
-        <button id="btn-rematch" class="btn btn-primary">
+        <button id="btn-rematch" class="btn btn-hero-primary">
           <span>Play Rematch</span>
         </button>
         <button id="btn-game-over-main-menu" class="btn btn-secondary">
