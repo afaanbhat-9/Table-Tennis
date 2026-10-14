@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Table Tennis 3D - Online Multiplayer & AI</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #22252a;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      touch-action: none;
+    }
+
+    #game-container {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    /* TOP HUD (Matching Reference Image) */
+    #hud-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10;
+      display: none;
+    }
+
+    /* Flip-card Scoreboard matching reference image */
+    .scoreboard-container {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      background: rgba(20, 20, 25, 0.45);
+      backdrop-filter: blur(8px);
+      border-radius: 8px;
+      padding: 4px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+      pointer-events: auto;
+    }
+
+    .player-badge {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 10px;
+    }
+
+    .flag-icon {
+      font-size: 26px;
+      filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));
+    }
+
+    .player-name-label {
+      color: #ffffff;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.5px;
+      max-width: 90px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .serve-indicator {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #ffdf4a;
+      box-shadow: 0 0 8px #ffdf4a;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .serve-indicator.active {
+      opacity: 1;
+    }
+
+    .score-cards-wrapper {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      background: #111317;
+      border-radius: 6px;
+      padding: 2px 4px;
+      box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.6);
+    }
+
+    .flip-card {
+      width: 36px;
+      height: 44px;
+      background: #ffffff;
+      color: #111317;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: 900;
+      font-family: 'Impact', 'Arial Black', sans-serif;
+      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35);
+      position: relative;
+    }
+
+    .flip-card::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 0;
+      width: 100%;
+      height: 1px;
+      background: rgba(0, 0, 0, 0.2);
+    }
+
+    /* Top-right Circular Buttons matching reference image */
+    .top-actions {
+      position: absolute;
+      top: 14px;
+      right: 18px;
+      display: flex;
+      gap: 12px;
+      pointer-events: auto;
+    }
+
+    .circle-btn {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #9e4b4b, #592525);
+      border: 2px solid rgba(255, 255, 255, 0.35);
+      color: #ffffff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), inset 0 1px 2px rgba(255,255,255,0.4);
+      transition: all 0.15s ease;
+      outline: none;
+    }
+
+    .circle-btn:hover {
+      transform: scale(1.06);
+      background: radial-gradient(circle at 35% 35%, #b55757, #6e2e2e);
+    }
+
+    .circle-btn:active {
+      transform: scale(0.95);
+    }
+
+    /* Banner Overlay: Countdown, Point Announcements */
+    #announcement-banner {
+      position: absolute;
+      top: 35%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: 'Impact', 'Arial Black', sans-serif;
+      font-size: 48px;
+      color: #ffea79;
+      text-shadow: 0 4px 12px rgba(0, 0, 0, 0.8), 0 0 20px rgba(255, 215, 0, 0.4);
+      letter-spacing: 2px;
+      pointer-events: none;
+      text-align: center;
+      opacity: 0;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+      z-index: 15;
+    }
+
+    #announcement-sub {
+      font-size: 20px;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-weight: 700;
+      text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+      margin-top: 6px;
+    }
+
+    #announcement-banner.visible {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1.05);
+    }
+
+    /* Bottom Info / Ping */
+    .hud-footer {
+      position: absolute;
+      bottom: 12px;
+      right: 16px;
+      color: rgba(255, 255, 255, 0.6);
+      font-size: 12px;
+      font-weight: 600;
+      pointer-events: none;
+    }
+
+    /* MENUS & MODALS */
+    .modal-backdrop {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(15, 18, 24, 0.82);
+      backdrop-filter: blur(10px);
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .modal-card {
+      background: #1e222b;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+      overflow: hidden;
+      color: #f1f3f7;
+      animation: modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes modalFadeIn {
+      from { opacity: 0; transform: scale(0.94); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .modal-header {
+      padding: 24px 28px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      text-align: center;
+    }
+
+    .modal-title {
+      font-size: 28px;
+      font-weight: 900;
+      letter-spacing: 0.5px;
+      color: #ffffff;
+      text-transform: uppercase;
+      font-family: 'Impact', 'Arial Black', sans-serif;
+    }
+
+    .modal-subtitle {
+      font-size: 14px;
+      color: #a0a6b5;
+      margin-top: 4px;
+    }
+
+    .modal-body {
+      padding: 24px 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 14px 20px;
+      font-size: 16px;
+      font-weight: 700;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      color: #ffffff;
+      outline: none;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #7846b8, #5a2e94);
+      box-shadow: 0 4px 16px rgba(120, 70, 184, 0.4);
+    }
+
+    .btn-primary:hover {
+      background: linear-gradient(135deg, #8751ce, #6434a3);
+    }
+
+    .btn-success {
+      background: linear-gradient(135deg, #1f9457, #136a3c);
+      box-shadow: 0 4px 16px rgba(31, 148, 87, 0.4);
+    }
+
+    .btn-success:hover {
+      background: linear-gradient(135deg, #27ad67, #177a45);
+    }
+
+    .btn-secondary {
+      background: #2b303c;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .btn-secondary:hover {
+      background: #363c4a;
+    }
+
+    .btn-danger {
+      background: linear-gradient(135deg, #c73636, #911e1e);
+    }
+
+    .btn-danger:hover {
+      background: linear-gradient(135deg, #dc4141, #a82323);
+    }
+
+    .btn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Form Inputs */
+    .input-field {
+      width: 100%;
+      background: #14171d;
+      border: 1.5px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 16px;
+      color: #ffffff;
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    .input-field:focus {
+      border-color: #7846b8;
+    }
+
+    .code-display {
+      font-family: monospace;
+      font-size: 32px;
+      font-weight: 800;
+      letter-spacing: 6px;
+      color: #ffea79;
+      background: #14171d;
+      border: 2px dashed #7846b8;
+      border-radius: 10px;
+      padding: 12px 20px;
+      text-align: center;
+      cursor: pointer;
+      position: relative;
+    }
+
+    .code-display:hover {
+      background: #1b1f28;
+    }
+
+    /* Tabs */
+    .tabs-nav {
+      display: flex;
+      gap: 8px;
+      background: #14171d;
+      padding: 4px;
+      border-radius: 10px;
+    }
+
+    .tab-btn {
+      flex: 1;
+      padding: 10px;
+      background: transparent;
+      border: none;
+      color: #8b92a3;
+      font-weight: 700;
+      font-size: 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .tab-btn.active {
+      background: #2b303c;
+      color: #ffffff;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Lobby Player Slots */
+    .lobby-slots {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .lobby-slot {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: #14171d;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .slot-player-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .slot-status-pill {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 20px;
+      text-transform: uppercase;
+    }
+
+    .status-ready {
+      background: rgba(31, 148, 87, 0.25);
+      color: #4ade80;
+      border: 1px solid #1f9457;
+    }
+
+    .status-waiting {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+      border: 1px solid #d97706;
+    }
+
+    /* Difficulty Selection Cards */
+    .difficulty-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .diff-card {
+      background: #14171d;
+      border: 2px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 12px 8px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .diff-card:hover {
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+
+    .diff-card.selected {
+      border-color: #7846b8;
+      background: rgba(120, 70, 184, 0.18);
+    }
+
+    .diff-title {
+      font-weight: 800;
+      font-size: 15px;
+      margin-bottom: 4px;
+    }
+
+    .diff-desc {
+      font-size: 11px;
+      color: #8b92a3;
+    }
+
+    /* Notification Toast */
+    #toast-msg {
+      position: absolute;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1b2029;
+      color: #ffffff;
+      padding: 10px 22px;
+      border-radius: 30px;
+      font-size: 14px;
+      font-weight: 600;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.15);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+      z-index: 100;
+    }
+
+    #toast-msg.show {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <!-- 3D WebGL Canvas Container -->
+  <div id="game-container"></div>
+
+  <!-- In-Game HUD (Matching Reference Image) -->
+  <div id="hud-overlay">
+    <!-- Top Center Scoreboard -->
+    <div class="scoreboard-container">
+      <div class="player-badge">
+        <span id="hud-flag-p1" class="flag-icon">🇹🇷</span>
+        <span id="hud-name-p1" class="player-name-label">YOU</span>
+        <span id="hud-serve-p1" class="serve-indicator active"></span>
+      </div>
+
+      <div class="score-cards-wrapper">
+        <div id="hud-score-p1" class="flip-card">0</div>
+        <div id="hud-score-p2" class="flip-card">0</div>
+      </div>
+
+      <div class="player-badge">
+        <span id="hud-serve-p2" class="serve-indicator"></span>
+        <span id="hud-name-p2" class="player-name-label">CPU</span>
+        <span id="hud-flag-p2" class="flag-icon">🤖</span>
+      </div>
+    </div>
+
+    <!-- Top Right Circular Buttons -->
+    <div class="top-actions">
+      <button id="btn-pause" class="circle-btn" title="Pause Game">
+        <span>❚❚</span>
+      </button>
+      <button id="btn-mute" class="circle-btn" title="Toggle Sound">
+        <span id="mute-icon">🔊</span>
+      </button>
+    </div>
+
+    <!-- Mid-screen announcements -->
+    <div id="announcement-banner">
+      <div id="announcement-text">READY</div>
+      <div id="announcement-sub"></div>
+    </div>
+
+    <!-- Footer info -->
+    <div class="hud-footer">
+      <span id="hud-mode-label">Singleplayer</span>
+      <span id="hud-ping-label" style="margin-left: 10px; display: none;">Ping: 0ms</span>
+    </div>
+  </div>
+
+  <!-- MAIN MENU MODAL -->
+  <div id="modal-main-menu" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Table Tennis 3D</div>
+        <div class="modal-subtitle">Fast-Paced 3D Table Tennis & Online Multiplayer</div>
+      </div>
+      <div class="modal-body">
+        <button id="btn-menu-vs-cpu" class="btn btn-primary">
+          <span>🤖 Play vs Computer</span>
+        </button>
+        <button id="btn-menu-party" class="btn btn-success">
+          <span>👥 Play with Friends (Party Code)</span>
+        </button>
+        <button id="btn-menu-how-to-play" class="btn btn-secondary">
+          <span>📖 How to Play</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- CPU DIFFICULTY SELECTOR MODAL -->
+  <div id="modal-cpu-difficulty" class="modal-backdrop" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Select Difficulty</div>
+        <div class="modal-subtitle">Choose your AI opponent level</div>
+      </div>
+      <div class="modal-body">
+        <div class="difficulty-grid">
+          <div class="diff-card" data-diff="easy">
+            <div class="diff-title" style="color: #4ade80;">Easy</div>
+            <div class="diff-desc">Relaxed pace, wider errors</div>
+          </div>
+          <div class="diff-card selected" data-diff="medium">
+            <div class="diff-title" style="color: #fbbf24;">Medium</div>
+            <div class="diff-desc">Balanced speed & placement</div>
+          </div>
+          <div class="diff-card" data-diff="hard">
+            <div class="diff-title" style="color: #f87171;">Hard</div>
+            <div class="diff-desc">Fierce spins & sharp returns</div>
+          </div>
+        </div>
+
+        <button id="btn-start-cpu-game" class="btn btn-primary" style="margin-top: 8px;">
+          <span>Start Match</span>
+        </button>
+        <button id="btn-back-to-main-from-diff" class="btn btn-secondary">
+          <span>Back</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PARTY MULTIPLAYER MODAL -->
+  <div id="modal-party" class="modal-backdrop" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Play with Friends</div>
+        <div class="modal-subtitle">Private matches strictly via Party Code</div>
+      </div>
+      <div class="modal-body">
+        <!-- Tabs: Host / Guest -->
+        <div class="tabs-nav" id="party-tabs">
+          <button class="tab-btn active" data-tab="create">Create Party</button>
+          <button class="tab-btn" data-tab="join">Join Party</button>
+        </div>
+
+        <!-- Player Name Input -->
+        <div>
+          <label style="font-size: 13px; color: #a0a6b5; margin-bottom: 4px; display: block;">Your Nickname</label>
+          <input id="input-player-name" class="input-field" type="text" placeholder="Enter nickname" maxlength="16" value="Player 1">
+        </div>
+
+        <!-- CREATE TAB VIEW -->
+        <div id="view-party-create" style="display: flex; flex-direction: column; gap: 14px;">
+          <button id="btn-create-party-action" class="btn btn-primary">
+            <span>Generate Party Code</span>
+          </button>
+        </div>
+
+        <!-- JOIN TAB VIEW -->
+        <div id="view-party-join" style="display: none; flex-direction: column; gap: 14px;">
+          <div>
+            <label style="font-size: 13px; color: #a0a6b5; margin-bottom: 4px; display: block;">6-Character Party Code</label>
+            <input id="input-party-code" class="input-field" type="text" placeholder="e.g. K8M4X2" maxlength="6" style="text-transform: uppercase; letter-spacing: 3px; font-weight: bold; text-align: center;">
+          </div>
+          <button id="btn-join-party-action" class="btn btn-success">
+            <span>Join Party</span>
+          </button>
+        </div>
+
+        <!-- WAITING LOBBY (Active when party created/joined) -->
+        <div id="view-party-lobby" style="display: none; flex-direction: column; gap: 14px;">
+          <div style="text-align: center;">
+            <div style="font-size: 12px; color: #a0a6b5; margin-bottom: 4px;">SHARE CODE WITH YOUR FRIEND</div>
+            <div id="display-party-code" class="code-display" title="Click to copy">------</div>
+            <div style="font-size: 11px; color: #7846b8; margin-top: 4px;">Click code to copy</div>
+          </div>
+
+          <div class="lobby-slots">
+            <div class="lobby-slot">
+              <div class="slot-player-info">
+                <span class="flag-icon" id="lobby-slot1-flag">🇹🇷</span>
+                <span id="lobby-slot1-name" style="font-weight: 700;">Host</span>
+              </div>
+              <span id="lobby-slot1-status" class="slot-status-pill status-ready">Ready</span>
+            </div>
+
+            <div class="lobby-slot">
+              <div class="slot-player-info">
+                <span class="flag-icon" id="lobby-slot2-flag">🇺🇸</span>
+                <span id="lobby-slot2-name" style="color: #a0a6b5;">Waiting for friend...</span>
+              </div>
+              <span id="lobby-slot2-status" class="slot-status-pill status-waiting">Empty</span>
+            </div>
+          </div>
+
+          <div id="lobby-actions" style="display: flex; flex-direction: column; gap: 8px;">
+            <button id="btn-lobby-ready" class="btn btn-secondary">
+              <span>Ready Up</span>
+            </button>
+            <button id="btn-lobby-start" class="btn btn-primary" style="display: none;" disabled>
+              <span>Start Match (Waiting for players)</span>
+            </button>
+          </div>
+
+          <button id="btn-leave-party" class="btn btn-danger" style="margin-top: 4px;">
+            <span>Leave Party</span>
+          </button>
+        </div>
+
+        <button id="btn-back-to-main-from-party" class="btn btn-secondary">
+          <span>Back to Main Menu</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HOW TO PLAY MODAL -->
+  <div id="modal-how-to-play" class="modal-backdrop" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">How to Play</div>
+        <div class="modal-subtitle">Master table tennis controls and rules</div>
+      </div>
+      <div class="modal-body" style="font-size: 14px; line-height: 1.6; color: #c4cad4;">
+        <p><strong>🎯 Desktop Controls:</strong> Move your mouse across the table to guide the paddle. Click or hold down left click while moving forward to deliver a high-speed smash or topspin stroke!</p>
+        <p><strong>📱 Mobile Controls:</strong> Drag your finger smoothly across the lower screen to slide the paddle and return the ball.</p>
+        <p><strong>🏆 ITTF Rules:</strong> The ball must bounce once on your side before you strike it back across the net to your opponent's side. First to 11 points (win by 2) wins the match!</p>
+        <button id="btn-close-how-to-play" class="btn btn-primary" style="margin-top: 8px;">
+          <span>Got it!</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PAUSE MODAL -->
+  <div id="modal-pause" class="modal-backdrop" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">Game Paused</div>
+      </div>
+      <div class="modal-body">
+        <button id="btn-resume-game" class="btn btn-primary">
+          <span>Resume Game</span>
+        </button>
+        <button id="btn-pause-mute" class="btn btn-secondary">
+          <span id="pause-mute-text">🔊 Sound: ON</span>
+        </button>
+        <button id="btn-quit-to-menu" class="btn btn-danger">
+          <span>Quit to Main Menu</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GAME OVER / MATCH WINNER MODAL -->
+  <div id="modal-game-over" class="modal-backdrop" style="display: none;">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div id="winner-headline" class="modal-title" style="color: #ffdf4a;">VICTORY!</div>
+        <div id="winner-subtitle" class="modal-subtitle">You won the match!</div>
+      </div>
+      <div class="modal-body" style="text-align: center;">
+        <div style="font-size: 13px; color: #a0a6b5; margin-bottom: 6px;">FINAL SCORE</div>
+        <div style="display: flex; justify-content: center; align-items: center; gap: 16px; margin-bottom: 16px;">
+          <span id="final-score-p1" style="font-size: 44px; font-weight: 900; color: #ffffff;">11</span>
+          <span style="font-size: 28px; color: #7846b8;">-</span>
+          <span id="final-score-p2" style="font-size: 44px; font-weight: 900; color: #ffffff;">8</span>
+        </div>
+
+        <button id="btn-rematch" class="btn btn-primary">
+          <span>Play Rematch</span>
+        </button>
+        <button id="btn-game-over-main-menu" class="btn btn-secondary">
+          <span>Main Menu</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notification -->
+  <div id="toast-msg">Party code copied to clipboard!</div>
+
+  <script type="module" src="./src/main.ts"></script>
+</body>
+</html>
