@@ -168,8 +168,11 @@ export class TableTennisAI {
     }
 
     // Natural paddle tilt (facing forward and slight angle based on X offset)
+    const isSwinging = dz > 0.04 && this.isReacting;
+    paddle.isSwinging = isSwinging;
+    paddle.swingPhase = isSwinging ? 'forward' : 'idle';
     paddle.rot = {
-      x: 0.1, // slight forward lean
+      x: isSwinging ? 0.3 : 0.1, // forward topspin lean
       y: (paddle.pos.x / 1.0) * -0.3,
       z: -(paddle.pos.x / 1.0) * 0.2
     };

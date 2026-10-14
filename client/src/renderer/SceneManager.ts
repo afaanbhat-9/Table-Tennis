@@ -3,7 +3,7 @@ import { TableMesh } from './TableMesh.js';
 import { GymnasiumMesh } from './GymnasiumMesh.js';
 import { PaddleMesh } from './PaddleMesh.js';
 import { BallMesh } from './BallMesh.js';
-import { BallState, PaddleState } from '../../../shared/types.js';
+import { BallState, PaddleState, Vector3D } from '../../../shared/types.js';
 
 export class SceneManager {
   public scene: THREE.Scene;
@@ -26,9 +26,9 @@ export class SceneManager {
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0xbab09e);
 
-    // 2. Camera: Match reference image perspective
+    // 2. Camera: Zoomed out ~18% for comfortable elevated view
     const aspect = container.clientWidth / container.clientHeight;
-    this.camera = new THREE.PerspectiveCamera(42, aspect, 0.1, 50);
+    this.camera = new THREE.PerspectiveCamera(45, aspect, 0.1, 50);
     this.resetCamera();
 
     // 3. WebGL Renderer
@@ -60,19 +60,19 @@ export class SceneManager {
     this.opponentPaddle = new PaddleMesh(false);
     this.scene.add(this.opponentPaddle.group);
 
-    // Ball
+    // Ball & Shadow & Hit Ripple
     this.ball = new BallMesh();
     this.scene.add(this.ball.mesh);
     this.scene.add(this.ball.shadowMesh);
+    this.scene.add(this.ball.hitRipple);
 
-    // Setup Resize Handling
     this.setupResize();
   }
 
   public resetCamera(): void {
-    // Camera position matching user reference image
-    this.camera.position.set(0, 1.34, 2.45);
-    this.camera.lookAt(0, 0.72, -0.6);
+    // Zoomed out view (~18%) with natural elevated perspective
+    this.camera.position.set(0, 1.48, 2.88);
+    this.camera.lookAt(0, 0.74, -0.45);
   }
 
   private setupResize(): void {
@@ -91,9 +91,17 @@ export class SceneManager {
     this.resizeObserver.observe(this.container);
   }
 
-  public updateGameState(ball: BallState, p1Paddle: PaddleState, p2Paddle: PaddleState): void {
+  public triggerHitEffect(pos?: Vector3D): void {
+    if (pos) {
+      this.ball.triggerHitEffect(pos.x, pos.y, pos.z);
+    } else {
+      this.ball.triggerHitEffect(this.ball.mesh.position.x, this.ball.mesh.position.y, this.ball.mesh.position.z);
+    }
+  }
+
+  public updateGameState(ball: BallState, p1Paddle: PaddleState, p2Paddle: PaddleState, dt: number = 0.016): void {
     // Update Ball
-    this.ball.updatePosition(ball.pos.x, ball.pos.y, ball.pos.z);
+    this.ball.updatePosition(ball.pos.x, ball.pos.y, ball.pos.z, dt);
     this.ball.setVisible(ball.active);
 
     // Update Player 1 Paddle

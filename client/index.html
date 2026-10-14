@@ -213,6 +213,49 @@
       pointer-events: none;
     }
 
+    .hud-tip-banner {
+      position: absolute;
+      bottom: 18px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(18, 22, 29, 0.78);
+      backdrop-filter: blur(8px);
+      padding: 7px 16px;
+      border-radius: 20px;
+      color: #e2e8f0;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      pointer-events: none;
+      transition: opacity 0.4s ease;
+      white-space: nowrap;
+    }
+
+    .hud-swing-badge {
+      position: absolute;
+      bottom: 54px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(135deg, #7846b8, #5a2e94);
+      color: #ffea79;
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 4px 12px;
+      border-radius: 12px;
+      opacity: 0;
+      transition: opacity 0.12s ease, transform 0.12s ease;
+      pointer-events: none;
+      box-shadow: 0 2px 8px rgba(120, 70, 184, 0.5);
+    }
+
+    .hud-swing-badge.active {
+      opacity: 1;
+      transform: translateX(-50%) scale(1.08);
+    }
+
     /* MENUS & MODALS */
     .modal-backdrop {
       position: absolute;
@@ -547,6 +590,12 @@
       <div id="announcement-sub"></div>
     </div>
 
+    <!-- Active Swing Feedback Badge -->
+    <div id="hud-swing-badge" class="hud-swing-badge">SWING STRIKE!</div>
+
+    <!-- Unobtrusive Control Tip Banner -->
+    <div id="hud-control-tip" class="hud-tip-banner">💡 Move to position • Quick flick or Click to swing!</div>
+
     <!-- Footer info -->
     <div class="hud-footer">
       <span id="hud-mode-label">Singleplayer</span>
@@ -701,9 +750,9 @@
         <div class="modal-subtitle">Master table tennis controls and rules</div>
       </div>
       <div class="modal-body" style="font-size: 14px; line-height: 1.6; color: #c4cad4;">
-        <p><strong>🎯 Desktop Controls:</strong> Move your mouse across the table to guide the paddle. Click or hold down left click while moving forward to deliver a high-speed smash or topspin stroke!</p>
-        <p><strong>📱 Mobile Controls:</strong> Drag your finger smoothly across the lower screen to slide the paddle and return the ball.</p>
-        <p><strong>🏆 ITTF Rules:</strong> The ball must bounce once on your side before you strike it back across the net to your opponent's side. First to 11 points (win by 2) wins the match!</p>
+        <p><strong>🎯 Desktop (Mouse & Trackpad):</strong> Move your mouse or trackpad to position the paddle. Perform a <em>quick directional flick</em> or <em>left-click</em> to swing your paddle! Swing forward for speed, upward for topspin lift, and left/right to steer cross-court.</p>
+        <p><strong>📱 Mobile Controls:</strong> Drag your finger smoothly to position the paddle. Perform a <em>quick finger flick</em> in the desired stroke direction to swing.</p>
+        <p><strong>🏆 ITTF Rules:</strong> The ball must bounce once on your table half before you return it across the net. First to 11 points (win by 2) wins the match!</p>
         <button id="btn-close-how-to-play" class="btn btn-primary" style="margin-top: 8px;">
           <span>Got it!</span>
         </button>

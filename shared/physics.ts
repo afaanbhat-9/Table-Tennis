@@ -42,12 +42,12 @@ export class PhysicsSimulation {
   constructor() {
     this.ball = this.createDefaultBall();
     this.paddle1 = {
-      pos: { x: 0, y: TABLE_HEIGHT + 0.15, z: PLAYER_PADDLE_Z },
+      pos: { x: 0, y: TABLE_HEIGHT + 0.16, z: PLAYER_PADDLE_Z },
       vel: { x: 0, y: 0, z: 0 },
       rot: { x: 0, y: 0, z: 0 }
     };
     this.paddle2 = {
-      pos: { x: 0, y: TABLE_HEIGHT + 0.15, z: OPPONENT_PADDLE_Z },
+      pos: { x: 0, y: TABLE_HEIGHT + 0.16, z: OPPONENT_PADDLE_Z },
       vel: { x: 0, y: 0, z: 0 },
       rot: { x: 0, y: 0, z: 0 }
     };
@@ -55,7 +55,7 @@ export class PhysicsSimulation {
 
   public createDefaultBall(): BallState {
     return {
-      pos: { x: 0, y: TABLE_HEIGHT + 0.35, z: PLAYER_PADDLE_Z - 0.2 },
+      pos: { x: 0, y: TABLE_HEIGHT + 0.22, z: 1.20 },
       vel: { x: 0, y: 0, z: 0 },
       lastHitter: null,
       bounceCountCurrentSide: 0,
@@ -68,15 +68,16 @@ export class PhysicsSimulation {
   }
 
   /**
-   * Spawns a serve for either player1 or player2 with legal trajectory towards the other side.
+   * Prepares a legal serve position above the server's table half.
    */
   public prepareServe(server: PlayerSide): void {
     const isP1 = server === 'player1';
-    const startZ = isP1 ? PLAYER_PADDLE_Z - 0.25 : OPPONENT_PADDLE_Z + 0.25;
-    const startY = TABLE_HEIGHT + 0.25;
+    const startZ = isP1 ? 1.20 : -1.20;
+    const startY = TABLE_HEIGHT + 0.22;
+    const startX = 0.12 * (Math.random() - 0.5);
 
     this.ball = {
-      pos: { x: 0.15 * (Math.random() - 0.5), y: startY, z: startZ },
+      pos: { x: startX, y: startY, z: startZ },
       vel: { x: 0, y: 0, z: 0 },
       lastHitter: server,
       bounceCountCurrentSide: 0,
@@ -87,28 +88,30 @@ export class PhysicsSimulation {
       active: false
     };
 
-    // Position paddle behind the ball
+    // Position server's paddle behind the ball
     if (isP1) {
-      this.paddle1.pos = { x: this.ball.pos.x, y: startY, z: PLAYER_PADDLE_Z };
+      this.paddle1.pos = { x: startX, y: startY, z: PLAYER_PADDLE_Z };
     } else {
-      this.paddle2.pos = { x: this.ball.pos.x, y: startY, z: OPPONENT_PADDLE_Z };
+      this.paddle2.pos = { x: startX, y: startY, z: OPPONENT_PADDLE_Z };
     }
   }
 
   /**
-   * Hits the serve into play
+   * Hits the serve legally: strikes downwards onto server's own table half first.
    */
   public launchServe(server: PlayerSide, targetX: number = 0, speedMultiplier: number = 1.0): void {
     const isP1 = server === 'player1';
     const dirZ = isP1 ? -1 : 1;
-    // Ball needs to bounce on server's side first (~0.4m in front of server), then clear net and bounce on receiver side.
-    const forwardSpeed = (5.5 + Math.random() * 1.0) * speedMultiplier;
-    const upwardSpeed = 1.8 + Math.random() * 0.4;
-    const sideSpeed = (targetX - this.ball.pos.x) * 1.8;
+
+    // Real table tennis serve: strikes downwards onto server's side first (~0.4m in front)
+    // Rebounds over the net and onto receiver's table half
+    const forwardSpeed = (4.4 + Math.random() * 0.6) * speedMultiplier;
+    const downwardSpeed = -1.8 - Math.random() * 0.3;
+    const sideSpeed = (targetX - this.ball.pos.x) * 1.3;
 
     this.ball.vel = {
       x: sideSpeed,
-      y: upwardSpeed,
+      y: downwardSpeed,
       z: dirZ * forwardSpeed
     };
     this.ball.lastHitter = server;
@@ -119,11 +122,21 @@ export class PhysicsSimulation {
   }
 
   /**
-   * Main step function. Uses substepping for robust swept collision detection.
+   * Substepped numerical integration and collision detection.
    */
   public step(dt: number, subSteps: number = 4): PhysicsStepResult {
     const soundEvents: SoundEvent[] = [];
     if (!this.ball.active) {
+      // During active serve stance, check if the server swung their paddle into the ball
+      if (this.ball.isServe && this.ball.lastHitter) {
+        const server = this.ball.lastHitter;
+        const paddle = server === 'player1' ? this.paddle1 : this.paddle2;
+        const hit = this.checkPaddleCollision(paddle, server);
+        if (hit.collided) {
+          soundEvents.push({ type: 'paddle_hit', intensity: hit.intensity, pos: { ...this.ball.pos } });
+          return { ball: this.ball, pointEnded: false, soundEvents };
+        }
+      }
       return { ball: this.ball, pointEnded: false, soundEvents };
     }
 
@@ -132,12 +145,10 @@ export class PhysicsSimulation {
     for (let s = 0; s < subSteps; s++) {
       const stepResult = this.subStep(subDt);
 
-      // Collect sound events
       for (const snd of stepResult.soundEvents) {
         soundEvents.push(snd);
       }
 
-      // If point ended in this substep, return immediately
       if (stepResult.pointEnded) {
         return {
           ball: this.ball,
@@ -195,7 +206,6 @@ export class PhysicsSimulation {
         // Table bounce!
         b.pos.y = TABLE_HEIGHT + BALL_RADIUS;
         b.vel.y = -b.vel.y * TABLE_RESTITUTION;
-        // Table surface slight friction
         b.vel.x *= 0.96;
         b.vel.z *= 0.97;
 
@@ -209,7 +219,6 @@ export class PhysicsSimulation {
         const bounceSide: PlayerSide = b.pos.z > 0 ? 'player1' : 'player2';
 
         if (b.isServe) {
-          // Serving rules: must bounce on server side first, then receiver side
           const server = b.lastHitter;
           if (!b.hasBouncedOnServerSide) {
             if (bounceSide === server) {
@@ -247,7 +256,6 @@ export class PhysicsSimulation {
           if (b.lastBounceSide === bounceSide) {
             b.bounceCountCurrentSide++;
             if (b.bounceCountCurrentSide >= 2) {
-              // Double bounce! Point goes to the opponent of bounceSide
               const winner: PlayerSide = bounceSide === 'player1' ? 'player2' : 'player1';
               return {
                 pointEnded: true,
@@ -266,7 +274,6 @@ export class PhysicsSimulation {
     }
 
     // 3. Collision with Net
-    // Net is at z = 0, x from -NET_WIDTH/2 to NET_WIDTH/2, y from TABLE_HEIGHT to NET_Y_TOP
     const crossedNetPlane = (prevPos.z <= 0 && b.pos.z >= 0) || (prevPos.z >= 0 && b.pos.z <= 0);
     if (crossedNetPlane) {
       if (
@@ -274,14 +281,13 @@ export class PhysicsSimulation {
         b.pos.y >= TABLE_HEIGHT &&
         b.pos.y <= NET_Y_TOP + BALL_RADIUS
       ) {
-        // Did it hit the very top tape (graze over)?
         if (b.pos.y >= NET_Y_TOP - 0.02) {
           // Graze net tape: slight slowdown, deflection
           b.vel.z *= 0.65;
           b.vel.y = Math.max(0.4, b.vel.y * 0.7);
           soundEvents.push({ type: 'net_hit', intensity: 0.5, pos: { ...b.pos } });
         } else {
-          // Solid net hit: bounce back / fall down
+          // Solid net hit: bounce back
           b.pos.z = prevPos.z;
           b.vel.z = -b.vel.z * NET_RESTITUTION;
           b.vel.x *= 0.5;
@@ -291,20 +297,35 @@ export class PhysicsSimulation {
     }
 
     // 4. Collision with Paddles
-    // Player 1 Paddle (Z > 0, hits towards negative Z)
-    if (b.vel.z > 0 && b.pos.z >= this.paddle1.pos.z - PADDLE_RADIUS - BALL_RADIUS) {
+    // Player 1 Paddle (Z > 0)
+    // Check if relative motion closes the distance towards paddle
+    const relSpeedP1 = b.vel.z - this.paddle1.vel.z;
+    if (
+      (relSpeedP1 > -0.5 || b.isServe) &&
+      b.pos.z >= this.paddle1.pos.z - PADDLE_RADIUS - BALL_RADIUS - 0.08
+    ) {
       const hit = this.checkPaddleCollision(this.paddle1, 'player1');
       if (hit.collided) {
         soundEvents.push({ type: 'paddle_hit', intensity: hit.intensity, pos: { ...b.pos } });
 
-        // Volley check: If ball hasn't bounced on player 1's side first (and it wasn't player 1 serving), it's an illegal volley!
+        // Volley check: If ball hasn't bounced on player 1's side first
+        const isBallAlreadyOut = Math.abs(b.pos.x) > TABLE_MAX_X || b.pos.z > TABLE_MAX_Z + 0.15;
         if (!b.isServe && b.lastHitter === 'player2' && b.lastBounceSide !== 'player1') {
-          return {
-            pointEnded: true,
-            pointWinner: 'player2',
-            pointReason: 'Illegal Volley (Hit before bounce)',
-            soundEvents
-          };
+          if (isBallAlreadyOut) {
+            return {
+              pointEnded: true,
+              pointWinner: 'player1',
+              pointReason: 'Player 2 Out',
+              soundEvents
+            };
+          } else {
+            return {
+              pointEnded: true,
+              pointWinner: 'player2',
+              pointReason: 'Illegal Volley (Hit before bounce)',
+              soundEvents
+            };
+          }
         }
 
         b.lastHitter = 'player1';
@@ -313,20 +334,34 @@ export class PhysicsSimulation {
       }
     }
 
-    // Player 2 Paddle (Z < 0, hits towards positive Z)
-    if (b.vel.z < 0 && b.pos.z <= this.paddle2.pos.z + PADDLE_RADIUS + BALL_RADIUS) {
+    // Player 2 Paddle (Z < 0)
+    const relSpeedP2 = b.vel.z - this.paddle2.vel.z;
+    if (
+      (relSpeedP2 < 0.5 || b.isServe) &&
+      b.pos.z <= this.paddle2.pos.z + PADDLE_RADIUS + BALL_RADIUS + 0.08
+    ) {
       const hit = this.checkPaddleCollision(this.paddle2, 'player2');
       if (hit.collided) {
         soundEvents.push({ type: 'paddle_hit', intensity: hit.intensity, pos: { ...b.pos } });
 
         // Volley check
+        const isBallAlreadyOut = Math.abs(b.pos.x) > TABLE_MAX_X || b.pos.z < TABLE_MIN_Z - 0.15;
         if (!b.isServe && b.lastHitter === 'player1' && b.lastBounceSide !== 'player2') {
-          return {
-            pointEnded: true,
-            pointWinner: 'player1',
-            pointReason: 'Illegal Volley (Hit before bounce)',
-            soundEvents
-          };
+          if (isBallAlreadyOut) {
+            return {
+              pointEnded: true,
+              pointWinner: 'player2',
+              pointReason: 'Player 1 Out',
+              soundEvents
+            };
+          } else {
+            return {
+              pointEnded: true,
+              pointWinner: 'player1',
+              pointReason: 'Illegal Volley (Hit before bounce)',
+              soundEvents
+            };
+          }
         }
 
         b.lastHitter = 'player2';
@@ -336,11 +371,7 @@ export class PhysicsSimulation {
     }
 
     // 5. Out of bounds / Floor collision / Miss check
-    // If ball drops below table height or travels far beyond baselines
     if (b.pos.y < TABLE_HEIGHT - 0.25 || Math.abs(b.pos.z) > 2.8 || Math.abs(b.pos.x) > 2.2) {
-      // Determine point winner:
-      // If player A hit it, and it bounced on player B's side, and player B failed to return it before it dropped: Player A wins!
-      // If player A hit it, and it never bounced on player B's side (went out or net): Player B wins!
       let winner: PlayerSide;
       let reason: string;
 
@@ -352,11 +383,9 @@ export class PhysicsSimulation {
         const opponent: PlayerSide = hitter === 'player1' ? 'player2' : 'player1';
 
         if (b.lastBounceSide === opponent) {
-          // Ball hit opponent table, opponent missed return
           winner = hitter;
           reason = `${hitter === 'player1' ? 'Player 1' : 'Player 2'} Winner`;
         } else {
-          // Ball went out without hitting opponent side
           winner = opponent;
           reason = `${hitter === 'player1' ? 'Player 1' : 'Player 2'} Out`;
         }
@@ -377,7 +406,7 @@ export class PhysicsSimulation {
   }
 
   /**
-   * Collision check between ball and paddle disk.
+   * Collision check between ball and paddle disk with dynamic swing impulse transfer.
    */
   private checkPaddleCollision(
     paddle: PaddleState,
@@ -391,33 +420,49 @@ export class PhysicsSimulation {
     const dy = b.pos.y - paddle.pos.y;
     const dz = b.pos.z - paddle.pos.z;
 
-    // Radial distance on paddle face
     const radialDist = Math.hypot(dx, dy);
+    // Swept thickness window
+    const thickness = PADDLE_THICKNESS + BALL_RADIUS + 0.08;
 
-    // Thickness tolerance
-    const thickness = PADDLE_THICKNESS + BALL_RADIUS + 0.05;
-
-    // Check if within paddle disk
-    if (radialDist <= PADDLE_RADIUS * 1.25 && Math.abs(dz) <= thickness) {
-      // Valid hit!
+    if (radialDist <= PADDLE_RADIUS * 1.35 && Math.abs(dz) <= thickness) {
       const dirZ = isP1 ? -1 : 1;
 
-      // Impart paddle velocity
-      const paddleSpeed = Math.hypot(paddle.vel.x, paddle.vel.y, paddle.vel.z);
-      const forwardBaseSpeed = 6.2 + Math.min(paddleSpeed * 0.9, 6.0);
+      // Handle serve strike
+      if (b.isServe && b.lastHitter === side) {
+        b.vel.x = (dx / PADDLE_RADIUS) * 0.7 + paddle.vel.x * 0.25;
+        b.vel.y = -1.8 + Math.max(-0.5, paddle.vel.y * 0.2);
+        b.vel.z = dirZ * (4.5 + Math.abs(paddle.vel.z) * 0.2);
+        b.active = true;
+        b.hasBouncedOnServerSide = false;
+        b.hasBouncedOnReceiverSide = false;
+        return { collided: true, intensity: 0.85 };
+      }
 
-      // Deflection based on contact offset on paddle face (aim control)
-      const aimX = (dx / PADDLE_RADIUS) * 2.8 + paddle.vel.x * 0.4;
-      const aimY = 1.6 + Math.max(-0.5, (dy / PADDLE_RADIUS) * 1.2) + Math.max(0, paddle.vel.y * 0.5);
+      // Rally strike: dynamic return speed based on paddle stroke & swing
+      const forwardPaddleSpeed = Math.max(0, -dirZ * paddle.vel.z);
+      const totalPaddleSpeed = Math.hypot(paddle.vel.x, paddle.vel.y, paddle.vel.z);
 
-      b.vel.x = aimX;
-      b.vel.y = aimY;
-      b.vel.z = dirZ * forwardBaseSpeed;
+      // Fast swing produces faster return, gentle positioning produces gentle return
+      const incomingSpeed = Math.abs(b.vel.z);
+      const forwardBaseSpeed = 5.2 + forwardPaddleSpeed * 0.65 + incomingSpeed * 0.18;
+      const clampedForwardSpeed = Math.min(11.2, Math.max(4.6, forwardBaseSpeed));
 
-      // Displace ball slightly away from paddle to prevent re-collision
+      // Controlled directional aim based on paddle contact offset and lateral swing
+      const aimX = (dx / PADDLE_RADIUS) * 0.95 + paddle.vel.x * 0.35;
+      const clampedAimX = Math.max(-2.2, Math.min(2.2, aimX));
+
+      // Topspin arc / lift
+      const aimY = 1.45 + (dy / PADDLE_RADIUS) * 0.5 + Math.max(0, paddle.vel.y * 0.35);
+      const clampedAimY = Math.max(0.6, Math.min(3.2, aimY));
+
+      b.vel.x = clampedAimX;
+      b.vel.y = clampedAimY;
+      b.vel.z = dirZ * clampedForwardSpeed;
+
+      // Anti-tunneling displacement in front of paddle
       b.pos.z = paddle.pos.z + dirZ * (PADDLE_THICKNESS / 2 + BALL_RADIUS + 0.02);
 
-      const intensity = Math.min(1.0, (forwardBaseSpeed + paddleSpeed) / 10.0);
+      const intensity = Math.min(1.0, (clampedForwardSpeed + totalPaddleSpeed) / 10.0);
       return { collided: true, intensity };
     }
 

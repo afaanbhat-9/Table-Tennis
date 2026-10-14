@@ -12,8 +12,9 @@
     "build:server": "tsc -p server/tsconfig.json",
     "build": "npm.cmd run build:client && npm.cmd run build:server",
     "test:game": "tsx tests/game.test.ts",
+    "test:swing": "tsx tests/swing.test.ts",
     "test:multiplayer": "tsx tests/multiplayer.test.ts",
-    "test": "tsx tests/game.test.ts && tsx tests/multiplayer.test.ts",
+    "test": "tsx tests/game.test.ts && tsx tests/swing.test.ts && tsx tests/multiplayer.test.ts",
     "start": "node dist/server/server/src/index.js"
   },
   "dependencies": {

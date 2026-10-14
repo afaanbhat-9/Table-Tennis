@@ -172,11 +172,13 @@ export class GameRoom {
       paddle.vel = { x: 0, y: 0, z: 0 };
     }
 
-    // Natural paddle orientation
+    // Natural paddle orientation & swing state
+    paddle.isSwinging = input.isSwinging || false;
+    paddle.swingPhase = input.swingPhase || 'idle';
     paddle.rot = {
-      x: isP1 ? -0.1 : 0.1,
-      y: (paddle.pos.x / 1.0) * (isP1 ? 0.3 : -0.3),
-      z: -(paddle.pos.x / 1.0) * 0.2
+      x: isP1 ? (input.isSwinging ? -0.35 : -0.1) : (input.isSwinging ? 0.35 : 0.1),
+      y: (paddle.pos.x / 1.0) * (isP1 ? 0.35 : -0.35),
+      z: -(paddle.pos.x / 1.0) * 0.22
     };
   }
 
@@ -186,10 +188,15 @@ export class GameRoom {
     if (this.phase === 'serving') {
       this.processPlayerInputs(PHYSICS_DT);
       this.phaseTimer -= PHYSICS_DT;
-      if (this.phaseTimer <= 0) {
-        // Automatically launch serve from the current server's paddle position
+
+      // Check if server swung and struck the ball into play
+      if (this.physics.ball.active) {
+        this.phase = 'in_play';
+        this.recentSoundEvents.push({ type: 'paddle_hit', intensity: 0.85 });
+      } else if (this.phaseTimer <= 0) {
+        // Assist auto-serve if countdown timer expired without player swing
         const server = this.rules.serve.server;
-        const targetX = (Math.random() - 0.5) * 0.6;
+        const targetX = (Math.random() - 0.5) * 0.4;
         this.physics.launchServe(server, targetX);
         this.phase = 'in_play';
         this.recentSoundEvents.push({ type: 'paddle_hit', intensity: 0.8 });

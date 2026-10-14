@@ -161,4 +161,31 @@ console.log('\nTest 5: Testing AI Difficulties (Easy, Medium, Hard)...');
   console.log('  -> AI difficulty differentiation PASSED!');
 }
 
+// TEST 6: Legal Serve Trajectory & Two-Bounce Verification
+console.log('\nTest 6: Testing Legal Downward Serve Trajectory...');
+{
+  const sim = new PhysicsSimulation();
+  sim.prepareServe('player1');
+  sim.launchServe('player1', 0);
+
+  let bouncedServerSide = false;
+  let bouncedReceiverSide = false;
+  let faulted = false;
+
+  for (let step = 0; step < 80; step++) {
+    const res = sim.step(PHYSICS_DT, 4);
+    if (sim.ball.hasBouncedOnServerSide) bouncedServerSide = true;
+    if (sim.ball.hasBouncedOnReceiverSide) bouncedReceiverSide = true;
+    if (res.pointEnded && res.pointReason?.includes('Fault')) {
+      faulted = true;
+      break;
+    }
+  }
+
+  assert.strictEqual(bouncedServerSide, true, 'Serve must bounce on server half first');
+  assert.strictEqual(bouncedReceiverSide, true, 'Serve must clear net and bounce on receiver half');
+  assert.strictEqual(faulted, false, 'Legal serve must not fault');
+  console.log('  -> Legal serve trajectory and bounce verification PASSED!');
+}
+
 console.log('\n=== ALL UNIT & PHYSICS TESTS COMPLETED SUCCESSFULLY! ===');

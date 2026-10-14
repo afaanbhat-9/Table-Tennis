@@ -26,6 +26,8 @@ export interface PaddleState {
   pos: Vector3D;
   vel: Vector3D;
   rot: Vector3D; // Euler angles in radians (e.g. pitch, yaw, roll)
+  isSwinging?: boolean;
+  swingPhase?: 'idle' | 'windup' | 'forward' | 'followthrough' | 'recovery';
 }
 
 export type MatchPhase =
@@ -85,6 +87,9 @@ export interface PlayerInput {
   targetPos: Vector3D;
   velocity: Vector3D;
   swingPower: number; // 0 to 1
+  isSwinging?: boolean;
+  swingPhase?: 'idle' | 'windup' | 'forward' | 'followthrough' | 'recovery';
+  swingDirection?: Vector3D;
 }
 
 // Room & Multiplayer types

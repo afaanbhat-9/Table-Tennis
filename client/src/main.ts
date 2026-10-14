@@ -17,7 +17,6 @@ import {
   PHYSICS_DT,
   SUB_STEPS,
   PLAYER_PADDLE_Z,
-  OPPONENT_PADDLE_Z,
   TABLE_HEIGHT
 } from '../../shared/constants.js';
 
@@ -38,6 +37,7 @@ class GameApp {
   private spPhase: MatchPhase = 'idle';
   private spPhaseTimer: number = 0;
   private spCountdown: number = 3;
+  private countdownInterval: any = null;
 
   private currentMode: GameMode = 'none';
   private isPaused: boolean = false;
@@ -54,6 +54,12 @@ class GameApp {
     this.spPhysics = new PhysicsSimulation();
     this.spRules = new RuleEngine();
     this.spAI = new TableTennisAI('medium');
+
+    // Swing trigger feedback
+    this.inputController.onSwingTriggered = (strength) => {
+      this.uiManager.showSwingIndicator(strength);
+      this.soundManager.playPaddleHit(0.35 * strength);
+    };
 
     this.uiManager = new UIManager({
       onStartVsCPU: (diff) => this.startSinglePlayer(diff),
@@ -94,6 +100,7 @@ class GameApp {
         const p1Name = this.netClient.roomState?.players.player1?.name || 'Player 1';
         const p2Name = this.netClient.roomState?.players.player2?.name || 'Player 2';
         this.uiManager.showHUD('multiplayer', p1Name, p2Name);
+        this.uiManager.showControlHint(4500);
       }
 
       this.uiManager.updateScoreboard(snap.score, snap.serve.server);
@@ -102,11 +109,19 @@ class GameApp {
       // Play sound events received from server
       if (snap.soundEvents) {
         for (const snd of snap.soundEvents) {
-          if (snd.type === 'paddle_hit') this.soundManager.playPaddleHit(snd.intensity);
-          else if (snd.type === 'table_hit') this.soundManager.playTableBounce(snd.intensity);
-          else if (snd.type === 'net_hit') this.soundManager.playNetHit();
-          else if (snd.type === 'score') this.soundManager.playScore();
-          else if (snd.type === 'applause') this.soundManager.playGameOver(true);
+          if (snd.type === 'paddle_hit') {
+            this.soundManager.playPaddleHit(snd.intensity);
+            this.sceneManager.triggerHitEffect(snd.pos);
+          } else if (snd.type === 'table_hit') {
+            this.soundManager.playTableBounce(snd.intensity);
+            this.sceneManager.triggerHitEffect(snd.pos);
+          } else if (snd.type === 'net_hit') {
+            this.soundManager.playNetHit();
+          } else if (snd.type === 'score') {
+            this.soundManager.playScore();
+          } else if (snd.type === 'applause') {
+            this.soundManager.playGameOver(true);
+          }
         }
       }
 
@@ -148,6 +163,11 @@ class GameApp {
 
   // --- SINGLE PLAYER FLOW ---
   public startSinglePlayer(difficulty: AIDifficulty): void {
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+      this.countdownInterval = null;
+    }
+
     this.currentMode = 'singleplayer';
     this.isPaused = false;
     this.spAI.setDifficulty(difficulty);
@@ -157,8 +177,9 @@ class GameApp {
 
     this.uiManager.showHUD('singleplayer', 'YOU', `CPU (${difficulty.toUpperCase()})`);
     this.uiManager.updateScoreboard(this.spRules.score, 'player1');
+    this.uiManager.showControlHint(4500);
 
-    this.inputController.setPosition(0.3, TABLE_HEIGHT + 0.15, PLAYER_PADDLE_Z);
+    this.inputController.setPosition(0.25, TABLE_HEIGHT + 0.16, PLAYER_PADDLE_Z);
     this.startSinglePlayerCountdown();
   }
 
@@ -169,9 +190,9 @@ class GameApp {
     this.uiManager.showAnnouncement('3', 'Ready...', 900);
     this.soundManager.playButtonClick();
 
-    const interval = setInterval(() => {
+    this.countdownInterval = setInterval(() => {
       if (this.currentMode !== 'singleplayer') {
-        clearInterval(interval);
+        if (this.countdownInterval) clearInterval(this.countdownInterval);
         return;
       }
       this.spCountdown--;
@@ -181,7 +202,7 @@ class GameApp {
       } else if (this.spCountdown === 0) {
         this.uiManager.showAnnouncement('SERVE!', '', 800);
         this.soundManager.playPaddleHit(0.8);
-        clearInterval(interval);
+        if (this.countdownInterval) clearInterval(this.countdownInterval);
         this.spBeginServe();
       }
     }, 1000);
@@ -189,7 +210,7 @@ class GameApp {
 
   private spBeginServe(): void {
     this.spPhase = 'serving';
-    this.spPhaseTimer = 0.5;
+    this.spPhaseTimer = 1.4;
     this.spPhysics.prepareServe(this.spRules.serve.server);
   }
 
@@ -201,19 +222,29 @@ class GameApp {
     this.spPhysics.paddle1.pos = { ...this.inputController.currentPaddle.pos };
     this.spPhysics.paddle1.vel = { ...this.inputController.currentPaddle.vel };
     this.spPhysics.paddle1.rot = { ...this.inputController.currentPaddle.rot };
+    this.spPhysics.paddle1.isSwinging = this.inputController.currentPaddle.isSwinging;
+    this.spPhysics.paddle1.swingPhase = this.inputController.currentPaddle.swingPhase;
 
     // 2. Update AI paddle
     this.spAI.update(dt, this.spPhysics.ball, this.spPhysics.paddle2);
 
     // 3. State handling
     if (this.spPhase === 'serving') {
-      this.spPhaseTimer -= dt;
-      if (this.spPhaseTimer <= 0) {
-        const server = this.spRules.serve.server;
-        const targetX = (Math.random() - 0.5) * 0.6;
-        this.spPhysics.launchServe(server, targetX);
+      // Check if server swung and struck the ball into play
+      if (this.spPhysics.ball.active) {
         this.spPhase = 'in_play';
         this.soundManager.playPaddleHit(0.85);
+        this.sceneManager.triggerHitEffect(this.spPhysics.ball.pos);
+      } else {
+        this.spPhaseTimer -= dt;
+        if (this.spPhaseTimer <= 0) {
+          const server = this.spRules.serve.server;
+          const targetX = (Math.random() - 0.5) * 0.4;
+          this.spPhysics.launchServe(server, targetX);
+          this.spPhase = 'in_play';
+          this.soundManager.playPaddleHit(0.85);
+          this.sceneManager.triggerHitEffect(this.spPhysics.ball.pos);
+        }
       }
       return;
     }
@@ -229,11 +260,17 @@ class GameApp {
     if (this.spPhase === 'in_play') {
       const result = this.spPhysics.step(dt, SUB_STEPS);
 
-      // Play sound events
+      // Play sound events & hit ripples
       for (const snd of result.soundEvents) {
-        if (snd.type === 'paddle_hit') this.soundManager.playPaddleHit(snd.intensity);
-        else if (snd.type === 'table_hit') this.soundManager.playTableBounce(snd.intensity);
-        else if (snd.type === 'net_hit') this.soundManager.playNetHit();
+        if (snd.type === 'paddle_hit') {
+          this.soundManager.playPaddleHit(snd.intensity);
+          this.sceneManager.triggerHitEffect(snd.pos);
+        } else if (snd.type === 'table_hit') {
+          this.soundManager.playTableBounce(snd.intensity);
+          this.sceneManager.triggerHitEffect(snd.pos);
+        } else if (snd.type === 'net_hit') {
+          this.soundManager.playNetHit();
+        }
       }
 
       if (result.pointEnded && result.pointWinner) {
@@ -297,7 +334,7 @@ class GameApp {
     // 2. Interpolate authoritative game snapshot
     const snap = this.netClient.getInterpolatedState(50);
     if (snap) {
-      this.sceneManager.updateGameState(snap.ball, snap.paddle1, snap.paddle2);
+      this.sceneManager.updateGameState(snap.ball, snap.paddle1, snap.paddle2, dt);
     }
   }
 
@@ -328,9 +365,14 @@ class GameApp {
   }
 
   private returnToMainMenu(): void {
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+      this.countdownInterval = null;
+    }
     this.currentMode = 'none';
     this.isPaused = false;
     this.spPhase = 'idle';
+    this.inputController.resetSwing();
     if (this.netClient.roomState) {
       this.netClient.leaveParty();
     }
@@ -351,16 +393,18 @@ class GameApp {
         this.sceneManager.updateGameState(
           this.spPhysics.ball,
           this.spPhysics.paddle1,
-          this.spPhysics.paddle2
+          this.spPhysics.paddle2,
+          dt
         );
       } else if (this.currentMode === 'multiplayer') {
         this.updateMultiplayer(dt);
       } else {
-        // Idle menu scene: gentle floating camera or static view
+        // Idle menu scene
         this.sceneManager.updateGameState(
           this.spPhysics.ball,
           this.spPhysics.paddle1,
-          this.spPhysics.paddle2
+          this.spPhysics.paddle2,
+          dt
         );
       }
 

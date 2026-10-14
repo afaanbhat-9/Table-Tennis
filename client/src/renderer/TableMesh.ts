@@ -5,8 +5,7 @@ import {
   TABLE_HEIGHT,
   TABLE_THICKNESS,
   NET_HEIGHT,
-  NET_WIDTH,
-  NET_OVERHANG
+  NET_WIDTH
 } from '../../../shared/constants.js';
 import { TextureGenerator } from './TextureGenerator.js';
 
@@ -30,21 +29,20 @@ export class TableMesh {
 
     const tableTexture = TextureGenerator.createTableTexture();
     const purpleSideMat = new THREE.MeshStandardMaterial({
-      color: 0x683ea0,
-      roughness: 0.35,
+      color: 0x623296,
+      roughness: 0.38,
       metalness: 0.05
     });
 
-    // Multi-material: top face has markings texture, edges have solid purple/slate
     const materials: THREE.Material[] = [
       purpleSideMat, // right (+X)
       purpleSideMat, // left (-X)
       new THREE.MeshStandardMaterial({
         map: tableTexture,
-        roughness: 0.3,
-        metalness: 0.05
+        roughness: 0.35,
+        metalness: 0.04
       }), // top (+Y)
-      new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.8 }), // bottom (-Y)
+      new THREE.MeshStandardMaterial({ color: 0x1f1f22, roughness: 0.85 }), // bottom (-Y)
       purpleSideMat, // front (+Z)
       purpleSideMat  // back (-Z)
     ];
@@ -55,13 +53,36 @@ export class TableMesh {
     tableTop.castShadow = true;
     this.group.add(tableTop);
 
-    // 2. Table Apron / Under-frame (grey metallic rim under the purple top)
+    // 2. Corner Protection Brackets (Dark metallic caps on 4 corners)
+    const capSize = 0.035;
+    const capThickness = TABLE_THICKNESS + 0.004;
+    const cornerCapGeo = new THREE.BoxGeometry(capSize, capThickness, capSize);
+    const cornerCapMat = new THREE.MeshStandardMaterial({
+      color: 0x22262e,
+      roughness: 0.35,
+      metalness: 0.8
+    });
+
+    const cornerOffsets = [
+      [-TABLE_WIDTH / 2 + capSize / 2, -TABLE_LENGTH / 2 + capSize / 2],
+      [TABLE_WIDTH / 2 - capSize / 2, -TABLE_LENGTH / 2 + capSize / 2],
+      [-TABLE_WIDTH / 2 + capSize / 2, TABLE_LENGTH / 2 - capSize / 2],
+      [TABLE_WIDTH / 2 - capSize / 2, TABLE_LENGTH / 2 - capSize / 2]
+    ];
+
+    for (const [cx, cz] of cornerOffsets) {
+      const cap = new THREE.Mesh(cornerCapGeo, cornerCapMat);
+      cap.position.set(cx, TABLE_HEIGHT - TABLE_THICKNESS / 2, cz);
+      this.group.add(cap);
+    }
+
+    // 3. Table Apron / Under-frame (matte slate metallic frame under top)
     const apronDepth = 0.05;
-    const apronThickness = 0.02;
+    const apronThickness = 0.022;
     const apronMat = new THREE.MeshStandardMaterial({
-      color: 0x474c57,
-      roughness: 0.4,
-      metalness: 0.5
+      color: 0x3d424d,
+      roughness: 0.45,
+      metalness: 0.6
     });
 
     // Left & Right aprons
@@ -84,14 +105,14 @@ export class TableMesh {
     backApron.position.set(0, TABLE_HEIGHT - TABLE_THICKNESS - apronDepth / 2, -TABLE_LENGTH / 2 + apronThickness / 2 + 0.01);
     this.group.add(backApron);
 
-    // 3. Sturdy Legs & Braces (Black square steel legs matching reference image)
+    // 4. Sturdy Competition Legs & Undercarriage
     const legWidth = 0.06;
     const legHeight = TABLE_HEIGHT - TABLE_THICKNESS;
     const legGeo = new THREE.BoxGeometry(legWidth, legHeight, legWidth);
     const legMat = new THREE.MeshStandardMaterial({
-      color: 0x181a1e,
-      roughness: 0.5,
-      metalness: 0.6
+      color: 0x16181c,
+      roughness: 0.45,
+      metalness: 0.7
     });
 
     const legInsetX = TABLE_WIDTH / 2 - 0.14;
@@ -112,9 +133,16 @@ export class TableMesh {
       leg.castShadow = true;
       leg.receiveShadow = true;
       this.group.add(leg);
+
+      // Rubber foot pad
+      const footGeo = new THREE.CylinderGeometry(0.04, 0.045, 0.015, 16);
+      const footMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
+      const foot = new THREE.Mesh(footGeo, footMat);
+      foot.position.set(lx, 0.008, lz);
+      this.group.add(foot);
     }
 
-    // Cross brace bars between legs
+    // Heavy-duty cross-braces
     const braceGeo = new THREE.BoxGeometry(TABLE_WIDTH - 0.28, 0.03, 0.03);
     const nearBrace = new THREE.Mesh(braceGeo, legMat);
     nearBrace.position.set(0, 0.18, legInsetZ);
@@ -123,17 +151,21 @@ export class TableMesh {
     const farBrace = new THREE.Mesh(braceGeo, legMat);
     farBrace.position.set(0, 0.18, -legInsetZ);
     this.group.add(farBrace);
+
+    const centerBraceGeo = new THREE.BoxGeometry(0.03, 0.03, TABLE_LENGTH - 0.44);
+    const centerBrace = new THREE.Mesh(centerBraceGeo, legMat);
+    centerBrace.position.set(0, 0.18, 0);
+    this.group.add(centerBrace);
   }
 
   private buildNet(): void {
-    // Net Mesh
     const netTexture = TextureGenerator.createNetTexture();
     const netGeo = new THREE.PlaneGeometry(NET_WIDTH, NET_HEIGHT);
     const netMat = new THREE.MeshStandardMaterial({
       map: netTexture,
       transparent: true,
       side: THREE.DoubleSide,
-      roughness: 0.6,
+      roughness: 0.55,
       depthWrite: false
     });
 
@@ -141,14 +173,14 @@ export class TableMesh {
     netMesh.position.set(0, TABLE_HEIGHT + NET_HEIGHT / 2, 0);
     this.group.add(netMesh);
 
-    // Support Posts
+    // Support Posts with metallic finish
     const postRadius = 0.012;
-    const postHeight = NET_HEIGHT + 0.02;
+    const postHeight = NET_HEIGHT + 0.025;
     const postGeo = new THREE.CylinderGeometry(postRadius, postRadius, postHeight, 16);
     const postMat = new THREE.MeshStandardMaterial({
-      color: 0x2b3038,
-      roughness: 0.4,
-      metalness: 0.7
+      color: 0x22252a,
+      roughness: 0.35,
+      metalness: 0.8
     });
 
     const leftPost = new THREE.Mesh(postGeo, postMat);
@@ -159,7 +191,19 @@ export class TableMesh {
     rightPost.position.set(NET_WIDTH / 2, TABLE_HEIGHT + postHeight / 2 - 0.01, 0);
     this.group.add(rightPost);
 
-    // Post table clamp brackets
+    // Tension thumbscrews on top of posts
+    const knobGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.01, 16);
+    const knobMat = new THREE.MeshStandardMaterial({ color: 0x999999, metalness: 0.9, roughness: 0.2 });
+
+    const leftKnob = new THREE.Mesh(knobGeo, knobMat);
+    leftKnob.position.set(-NET_WIDTH / 2, TABLE_HEIGHT + postHeight, 0);
+    this.group.add(leftKnob);
+
+    const rightKnob = new THREE.Mesh(knobGeo, knobMat);
+    rightKnob.position.set(NET_WIDTH / 2, TABLE_HEIGHT + postHeight, 0);
+    this.group.add(rightKnob);
+
+    // Table clamp brackets
     const clampGeo = new THREE.BoxGeometry(0.04, 0.08, 0.05);
     const leftClamp = new THREE.Mesh(clampGeo, postMat);
     leftClamp.position.set(-TABLE_WIDTH / 2 - 0.02, TABLE_HEIGHT - 0.02, 0);
@@ -171,15 +215,14 @@ export class TableMesh {
   }
 
   private buildShadow(): void {
-    // Soft diffuse contact shadow on the floor underneath the table (matching reference image)
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 512;
     const ctx = canvas.getContext('2d')!;
 
     const grad = ctx.createRadialGradient(256, 256, 50, 256, 256, 250);
-    grad.addColorStop(0, 'rgba(0, 0, 0, 0.75)');
-    grad.addColorStop(0.5, 'rgba(0, 0, 0, 0.45)');
+    grad.addColorStop(0, 'rgba(0, 0, 0, 0.72)');
+    grad.addColorStop(0.5, 'rgba(0, 0, 0, 0.40)');
     grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, 512, 512);

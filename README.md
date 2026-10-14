@@ -2,11 +2,29 @@
 
 A real-time, browser-based 3D Table Tennis game featuring single-player gameplay against an intelligent computer AI and private online multiplayer against a friend using party codes.
 
-Visually designed to faithfully match the provided gymnasium reference image:
-- **3D Table**: ITTF dimensions ($2.74\text{m} \times 1.525\text{m} \times 0.76\text{m}$) with a royal purple playing surface, white border lines (2cm), white center line (3mm), steel under-apron, sturdy black legs, net mesh with white top tape, and soft contact shadows.
-- **Gymnasium Environment**: Warm polished hardwood parquet floor with glossy reflections, sports hall back wall with lower wood wainscoting paneling, Swedish wall bars (ladder racks), hallway doorway, and warm stadium lighting.
-- **Paddles & Ball**: Red rubber paddle for Player 1, Green rubber paddle for Player 2 / AI, wooden handles, and a high-visibility yellow 40mm celluloid ball casting a real-time shadow.
-- **Top Flip Scoreboard**: Scoreboard displaying player flags, names, active server indicators, flip-card numbers, pause button, and sound toggle button.
+Visually designed to faithfully match the gymnasium reference image:
+- **Natural Swing Controls**: Natural stroke mechanics for PC (mouse and trackpad) and mobile (touch screen) with flick gesture detection, forward acceleration, followthrough, and recovery.
+- **Zoomed-Out Camera Perspective**: Elevated 18% zoomed-out three-quarter perspective ($x=0, y=1.48, z=2.88$, looking at $0, 0.74, -0.45$), offering full court readability of the table, net, ball arc, and opponent paddle.
+- **Upgraded Arena Visuals**: Warm polished hardwood parquet floor with glossy reflections, arena court barriers, gymnasium wall with Swedish ladder rungs, equipment door, soft shadows, and warm stadium lighting.
+- **3D Table & Net**: ITTF dimensions ($2.74\text{m} \times 1.525\text{m} \times 0.76\text{m}$) with a royal purple playing surface, 2cm white outer boundary lines, 3mm white center line, corner protection brackets, steel under-apron, sturdy black legs with rubber pads, and tensioned mesh net.
+- **Paddles & Ball**: Red rubber paddle for Player 1, Green rubber paddle for Player 2 / AI with gold decorative edge tape, ergonomic flared wooden handle, and a 40mm celluloid ball casting a real-time shadow with visual hit ripple effects.
+- **Top Flip Scoreboard**: Scoreboard displaying player flags, names, active server indicators, flip-card numbers, pause button, sound toggle button, and unobtrusive control tips.
+
+---
+
+## Controls Scheme
+
+### Desktop (Physical Mouse & Laptop Trackpad)
+- **Position Paddle**: Move your mouse or slide your finger across your laptop trackpad to smoothly position the paddle within legal boundaries. Slow movements position the paddle without triggering accidental shots.
+- **Swing Stroke**: Perform a **quick directional flick** in the desired stroke direction, or **left-click/tap** to initiate a forward swing!
+  - **Forward drive**: Faster forward flick imparts heavy forward return velocity.
+  - **Topspin lift**: Upward flick lifts the ball over the net with a high-margin arc.
+  - **Cross-court angle**: Left or right flick angles the return sharply across the table.
+- **Serve**: When it is your turn to serve, either swing your paddle forward into the ball to hit your serve, or allow the assist timer to launch it automatically.
+
+### Mobile (Android & iOS Touch Screens)
+- **Position Paddle**: Drag your finger smoothly across the lower screen area to guide the paddle. Unintended page scrolling and pull-to-refresh are prevented on the game canvas.
+- **Touch Swing**: Perform a **quick deliberate finger flick** to execute a forward stroke.
 
 ---
 
@@ -35,6 +53,7 @@ Visually designed to faithfully match the provided gymnasium reference image:
 - Substepped numerical integration (effective 240Hz) with swept collision tests to eliminate high-speed tunneling.
 - ITTF scoring rules: Games to 11 points (must win by 2).
 - Service rotation: Service alternates every 2 points, or every 1 point during deuce ($\ge 10\text{--}10$).
+- Realistic downward serve bounce: Ball strikes server's own table half first, clears net, and lands on receiver's half.
 - Table bounce restitution ($e \approx 0.89$), paddle impulse deflection based on strike velocity and contact position, and net collision with tape graze detection.
 
 ### 4. Audio Engine
@@ -56,6 +75,7 @@ Table Tennis/
 │   ├── types.ts              # GameState, BallState, RoomState, Socket events
 │   ├── physics.ts            # Deterministic 3D physics & collision engine
 │   ├── rules.ts              # Table tennis scoring & service rotation rules
+│   ├── swing.ts              # Swing state machine (windup, contact, followthrough, recovery)
 │   └── ai.ts                 # AI opponent with human reaction latency & prediction
 ├── server/                   # Authoritative Multiplayer Backend
 │   ├── src/
@@ -69,13 +89,14 @@ Table Tennis/
 │   ├── tsconfig.json
 │   └── src/
 │       ├── main.ts           # Game state orchestrator
-│       ├── renderer/         # Three.js scene, gym environment, table, paddles, ball
+│       ├── renderer/         # Three.js scene, gymnasium, table, paddles, ball
 │       ├── audio/            # Web Audio API procedural sound synthesizer
 │       ├── input/            # Mouse and touch controls with boundary clamping
 │       ├── net/              # Socket.IO client with interpolation buffer
 │       └── ui/               # UI manager for HUD, modals, and scoreboard
 ├── tests/
 │   ├── game.test.ts          # Unit tests for physics, rules, and AI difficulty
+│   ├── swing.test.ts         # Tests for flick gesture detection, clamping, and touch
 │   └── multiplayer.test.ts   # Integration tests for party codes and 2-player limits
 ├── package.json
 └── tsconfig.json
@@ -130,6 +151,7 @@ npm test
 ```
 Or run individual test suites:
 - **Physics, Rules, & AI**: `npm run test:game`
+- **Swing Controls & Input Detection**: `npm run test:swing`
 - **Multiplayer Networking & Party System**: `npm run test:multiplayer`
 
 ---
@@ -153,27 +175,3 @@ Or run individual test suites:
    - Guest clicks **Ready Up**.
    - Host clicks **Start Match!**.
 7. The synchronized 3-2-1 countdown will trigger, and the real-time match will begin with server-authoritative physics, scoring, and paddle movement!
-
----
-
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT`   | `3001`  | Port on which the HTTP / WebSocket server listens |
-
----
-
-## Deployment Instructions
-
-### Deploying to Render / Railway / Heroku / Fly.io / VPS
-1. Set the build command:
-   ```bash
-   npm run build
-   ```
-2. Set the start command:
-   ```bash
-   npm start
-   ```
-3. Set the `PORT` environment variable to the port provided by your cloud host.
-4. The server will host the compiled static frontend at `/` and serve real-time Socket.IO multiplayer over WebSockets on the same port.

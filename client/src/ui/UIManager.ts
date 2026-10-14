@@ -38,6 +38,11 @@ export class UIManager {
   private btnMute = document.getElementById('btn-mute')!;
   private muteIcon = document.getElementById('mute-icon')!;
 
+  private hudControlTip = document.getElementById('hud-control-tip');
+  private hudSwingBadge = document.getElementById('hud-swing-badge');
+  private swingBadgeTimer: any = null;
+  private controlTipTimer: any = null;
+
   // Modals
   private modalMainMenu = document.getElementById('modal-main-menu')!;
   private modalCpuDifficulty = document.getElementById('modal-cpu-difficulty')!;
@@ -364,6 +369,27 @@ export class UIManager {
     if (pauseMute) {
       pauseMute.innerText = isMuted ? '🔇 Sound: MUTED' : '🔊 Sound: ON';
     }
+  }
+
+  public showControlHint(durationMs: number = 4000): void {
+    if (!this.hudControlTip) return;
+    this.hudControlTip.style.opacity = '1';
+    if (this.controlTipTimer) clearTimeout(this.controlTipTimer);
+    this.controlTipTimer = setTimeout(() => {
+      if (this.hudControlTip) this.hudControlTip.style.opacity = '0';
+    }, durationMs);
+  }
+
+  public showSwingIndicator(strength: number): void {
+    if (!this.hudSwingBadge) return;
+    const powerText = strength > 0.8 ? 'SMASH DRIVE!' : (strength > 0.6 ? 'STRONG SWING!' : 'SWING STRIKE!');
+    this.hudSwingBadge.innerText = powerText;
+    this.hudSwingBadge.classList.add('active');
+
+    if (this.swingBadgeTimer) clearTimeout(this.swingBadgeTimer);
+    this.swingBadgeTimer = setTimeout(() => {
+      if (this.hudSwingBadge) this.hudSwingBadge.classList.remove('active');
+    }, 450);
   }
 
   public showToast(msg: string): void {
