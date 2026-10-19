@@ -7,17 +7,20 @@ export class GymnasiumMesh {
   constructor() {
     this.group = new THREE.Group();
     this.buildFloor();
-    this.buildBackWall();
+    this.buildWalls();
     this.buildLighting();
   }
 
+  /**
+   * Warm, glossy anime school gymnasium wooden parquet/plank floor.
+   */
   private buildFloor(): void {
-    const floorTex = TextureGenerator.createGymFloorTexture();
-    const floorGeo = new THREE.PlaneGeometry(18, 26);
+    const floorTex = TextureGenerator.createTournamentFloorTexture();
+    const floorGeo = new THREE.PlaneGeometry(26, 32);
     const floorMat = new THREE.MeshStandardMaterial({
       map: floorTex,
-      roughness: 0.28,
-      metalness: 0.08
+      roughness: 0.32,
+      metalness: 0.05
     });
 
     const floor = new THREE.Mesh(floorGeo, floorMat);
@@ -27,115 +30,138 @@ export class GymnasiumMesh {
     this.group.add(floor);
   }
 
-  private buildBackWall(): void {
-    const wallTex = TextureGenerator.createGymWallTexture();
-    const wallGeo = new THREE.PlaneGeometry(18, 8);
-    const wallMat = new THREE.MeshStandardMaterial({
-      map: wallTex,
-      roughness: 0.7,
-      metalness: 0.05
+  /**
+   * Authentic table tennis gymnasium sports hall walls:
+   * Architectural cream upper wall with high clerestory windows, wall clock, and tournament plaque,
+   * warm honey-oak lower wainscoting with wood moulding, equipment doorway, and Swedish wall bars.
+   */
+  private buildWalls(): void {
+    const wallGroup = new THREE.Group();
+
+    const wallHeight = 8.2;
+    const wallWidth = 26.0;
+    const wallDepth = -5.8;
+
+    // 1. Back Wall Mesh
+    const backWallTex = TextureGenerator.createGymWallTexture();
+    const backWallGeo = new THREE.PlaneGeometry(wallWidth, wallHeight);
+    const backWallMat = new THREE.MeshStandardMaterial({
+      map: backWallTex,
+      roughness: 0.65,
+      metalness: 0.04
     });
 
-    const backWall = new THREE.Mesh(wallGeo, wallMat);
-    backWall.position.set(0, 4, -6.0); // 6 meters behind center of table
+    const backWall = new THREE.Mesh(backWallGeo, backWallMat);
+    backWall.position.set(0, wallHeight / 2, wallDepth);
     backWall.receiveShadow = true;
-    this.group.add(backWall);
+    wallGroup.add(backWall);
 
-    // Left and right gym walls
-    const sideWallGeo = new THREE.PlaneGeometry(26, 8);
-    const sideWallMat = new THREE.MeshStandardMaterial({
-      color: 0xc4b9a5,
-      roughness: 0.8
-    });
-
-    const leftWall = new THREE.Mesh(sideWallGeo, sideWallMat);
-    leftWall.rotation.y = Math.PI / 2;
-    leftWall.position.set(-9, 4, 0);
-    this.group.add(leftWall);
-
-    const rightWall = new THREE.Mesh(sideWallGeo, sideWallMat);
-    rightWall.rotation.y = -Math.PI / 2;
-    rightWall.position.set(9, 4, 0);
-    this.group.add(rightWall);
-  }
-
-  private buildBarriers(): void {
-    // Competition court surrounds (classic blue table tennis barriers in the background)
-    const barrierHeight = 0.72;
-    const barrierDepth = 0.03;
-    const barrierLength = 2.2;
-
-    const barrierMat = new THREE.MeshStandardMaterial({
-      color: 0x1d4ed8,
-      roughness: 0.5,
+    // 2. Back Wall 3D Moulding Trim
+    // Dark timber baseboard along floor
+    const baseboardGeo = new THREE.BoxGeometry(wallWidth, 0.28, 0.08);
+    const baseboardMat = new THREE.MeshStandardMaterial({
+      color: 0x482810,
+      roughness: 0.45,
       metalness: 0.1
     });
+    const baseboard = new THREE.Mesh(baseboardGeo, baseboardMat);
+    baseboard.position.set(0, 0.14, wallDepth + 0.04);
+    wallGroup.add(baseboard);
 
-    const frameMat = new THREE.MeshStandardMaterial({
-      color: 0x1e2430,
+    // Dado rail moulding separating upper and lower wall
+    const dadoGeo = new THREE.BoxGeometry(wallWidth, 0.08, 0.05);
+    const dadoMat = new THREE.MeshStandardMaterial({
+      color: 0x5a3214,
       roughness: 0.4,
-      metalness: 0.8
+      metalness: 0.1
+    });
+    const dado = new THREE.Mesh(dadoGeo, dadoMat);
+    dado.position.set(0, 1.71, wallDepth + 0.03);
+    wallGroup.add(dado);
+
+    // 3. Side Walls (Left and Right court enclosure)
+    const sideWallTex = TextureGenerator.createGymSideWallTexture();
+    const sideWallLen = 28.0;
+    const sideWallGeo = new THREE.PlaneGeometry(sideWallLen, wallHeight);
+    const sideWallMat = new THREE.MeshStandardMaterial({
+      map: sideWallTex,
+      roughness: 0.7,
+      metalness: 0.04
     });
 
-    // Create 3 back court barriers across Z = -4.2
-    for (let i = -1; i <= 1; i++) {
-      const bGroup = new THREE.Group();
-      const panelGeo = new THREE.BoxGeometry(barrierLength, barrierHeight, barrierDepth);
-      const panel = new THREE.Mesh(panelGeo, barrierMat);
-      panel.position.y = barrierHeight / 2 + 0.02;
-      panel.castShadow = true;
-      panel.receiveShadow = true;
-      bGroup.add(panel);
+    // Left Wall
+    const leftWall = new THREE.Mesh(sideWallGeo, sideWallMat);
+    leftWall.rotation.y = Math.PI / 2;
+    leftWall.position.set(-13.0, wallHeight / 2, 2.0);
+    leftWall.receiveShadow = true;
+    wallGroup.add(leftWall);
 
-      // Steel feet
-      const footGeo = new THREE.CylinderGeometry(0.015, 0.015, 0.35, 8);
-      footGeo.rotateX(Math.PI / 2);
-      const footL = new THREE.Mesh(footGeo, frameMat);
-      footL.position.set(-barrierLength / 2 + 0.15, 0.015, 0);
-      bGroup.add(footL);
+    const leftBaseboardGeo = new THREE.BoxGeometry(sideWallLen, 0.28, 0.08);
+    const leftBaseboard = new THREE.Mesh(leftBaseboardGeo, baseboardMat);
+    leftBaseboard.rotation.y = Math.PI / 2;
+    leftBaseboard.position.set(-12.96, 0.14, 2.0);
+    wallGroup.add(leftBaseboard);
 
-      const footR = new THREE.Mesh(footGeo, frameMat);
-      footR.position.set(barrierLength / 2 - 0.15, 0.015, 0);
-      bGroup.add(footR);
+    // Right Wall
+    const rightWall = new THREE.Mesh(sideWallGeo, sideWallMat);
+    rightWall.rotation.y = -Math.PI / 2;
+    rightWall.position.set(13.0, wallHeight / 2, 2.0);
+    rightWall.receiveShadow = true;
+    wallGroup.add(rightWall);
 
-      bGroup.position.set(i * (barrierLength + 0.08), 0, -4.2);
-      this.group.add(bGroup);
-    }
+    const rightBaseboard = new THREE.Mesh(leftBaseboardGeo, baseboardMat);
+    rightBaseboard.rotation.y = -Math.PI / 2;
+    rightBaseboard.position.set(12.96, 0.14, 2.0);
+    wallGroup.add(rightBaseboard);
+
+    this.group.add(wallGroup);
   }
 
+
+
+  /**
+   * Warm daytime anime lighting: warm sun key light streaming from windows,
+   * soft warm ambient fill, and gentle court focus.
+   */
   private buildLighting(): void {
-    // 1. Warm ambient light
-    const ambientLight = new THREE.AmbientLight(0xfff5e6, 0.8);
+    // 1. Warm daytime anime ambient fill
+    const ambientLight = new THREE.AmbientLight(0xffedd8, 1.25);
     this.group.add(ambientLight);
 
-    // 2. Main overhead stadium light (matching reference image specular sheen)
-    const mainLight = new THREE.DirectionalLight(0xffffff, 1.15);
-    mainLight.position.set(0, 5.0, 2.2);
-    mainLight.target.position.set(0, 0.76, 0);
-    mainLight.castShadow = true;
-    mainLight.shadow.mapSize.width = 1024;
-    mainLight.shadow.mapSize.height = 1024;
-    mainLight.shadow.camera.near = 0.5;
-    mainLight.shadow.camera.far = 12;
-    mainLight.shadow.camera.left = -2.2;
-    mainLight.shadow.camera.right = 2.2;
-    mainLight.shadow.camera.top = 3.0;
-    mainLight.shadow.camera.bottom = -3.0;
-    mainLight.shadow.bias = -0.0004;
+    // 2. High sun directional key light streaming from the window side (upper left)
+    const sunLight = new THREE.DirectionalLight(0xfff6e3, 2.6);
+    sunLight.position.set(-4.5, 6.8, 2.2);
+    sunLight.target.position.set(0, 0.76, 0);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 2048;
+    sunLight.shadow.mapSize.height = 2048;
+    sunLight.shadow.camera.near = 1.0;
+    sunLight.shadow.camera.far = 16;
+    sunLight.shadow.bias = -0.0002;
+    sunLight.shadow.radius = 2.5;
 
-    this.group.add(mainLight);
-    this.group.add(mainLight.target);
+    this.group.add(sunLight);
+    this.group.add(sunLight.target);
 
-    // 3. Far table fill light
-    const farFill = new THREE.DirectionalLight(0xffeedd, 0.5);
-    farFill.position.set(0, 3.8, -3.8);
-    farFill.target.position.set(0, 0.76, -1.0);
-    this.group.add(farFill);
-    this.group.add(farFill.target);
+    // 3. Gentle overhead court focus light
+    const courtSpot = new THREE.SpotLight(0xfffaec, 1.6, 16, Math.PI / 4, 0.45, 1.0);
+    courtSpot.position.set(0, 5.8, 0.1);
+    courtSpot.target.position.set(0, 0.74, 0);
+    this.group.add(courtSpot);
+    this.group.add(courtSpot.target);
 
-    // 4. Center table point light to enhance table top gloss
-    const tableGlow = new THREE.PointLight(0xf0e8ff, 0.65, 6);
-    tableGlow.position.set(0, 2.3, 0);
-    this.group.add(tableGlow);
+    // 4. Soft sky-blue window fill light from upper-left
+    const skyFill = new THREE.DirectionalLight(0xbfe0f7, 0.65);
+    skyFill.position.set(-6.0, 4.5, -2.0);
+    skyFill.target.position.set(0, 0.76, 0);
+    this.group.add(skyFill);
+    this.group.add(skyFill.target);
+
+    // 5. Warm floor bounce light
+    const floorBounce = new THREE.DirectionalLight(0xf5dcc2, 0.55);
+    floorBounce.position.set(0, 0.2, 0);
+    floorBounce.target.position.set(0, 1.5, 0);
+    this.group.add(floorBounce);
+    this.group.add(floorBounce.target);
   }
 }

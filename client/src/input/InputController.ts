@@ -5,7 +5,8 @@ import {
   PADDLE_MIN_Y,
   PADDLE_MAX_Y,
   PLAYER_PADDLE_Z,
-  TABLE_HEIGHT
+  TABLE_HEIGHT,
+  getMinPaddleY
 } from '../../../shared/constants.js';
 import { PaddleState, PlayerInput, Vector3D } from '../../../shared/types.js';
 import { SwingState } from '../../../shared/swing.js';
@@ -23,12 +24,12 @@ export class InputController {
   // Permitted paddle positioning
   public targetPos: Vector3D = {
     x: 0.25,
-    y: TABLE_HEIGHT + 0.16,
+    y: TABLE_HEIGHT + 0.12,
     z: PLAYER_PADDLE_Z
   };
 
   public currentPaddle: PaddleState = {
-    pos: { x: 0.25, y: TABLE_HEIGHT + 0.16, z: PLAYER_PADDLE_Z },
+    pos: { x: 0.25, y: TABLE_HEIGHT + 0.12, z: PLAYER_PADDLE_Z },
     vel: { x: 0, y: 0, z: 0 },
     rot: { x: -0.1, y: 0.08, z: -0.05 },
     isSwinging: false,
@@ -37,6 +38,9 @@ export class InputController {
 
   // Swing state machine
   public swingState: SwingState;
+
+  // Active ball reference for 3D trajectory tracking assistance
+  public activeBall: any | null = null;
 
   // Pointer tracking & history for flick gesture detection
   private pointerHistory: PointerSample[] = [];
@@ -47,9 +51,8 @@ export class InputController {
   private planeZ: THREE.Plane;
 
   // Flick thresholds tuned for physical mouse, laptop trackpad, and touch screens
-  // Minimum speed: ~700 px/sec or small fast displacement
-  private readonly FLICK_MIN_SPEED_PX = 650;
-  private readonly FLICK_MIN_DISPLACEMENT_PX = 20;
+  private readonly FLICK_MIN_SPEED_PX = 850;
+  private readonly FLICK_MIN_DISPLACEMENT_PX = 18;
   private readonly FLICK_WINDOW_MS = 100;
 
   // Sensitivity
@@ -57,6 +60,8 @@ export class InputController {
 
   // Callback when swing is triggered (for audio or visual effects)
   public onSwingTriggered: ((strength: number, direction: Vector3D) => void) | null = null;
+  public onPointerTap: (() => void) | null = null;
+  public onPointerRelease: (() => void) | null = null;
 
   constructor(domElement: HTMLElement, camera: THREE.PerspectiveCamera) {
     this.domElement = domElement;
@@ -97,12 +102,27 @@ export class InputController {
 
     // Prevent right click menu
     this.domElement.addEventListener('contextmenu', (e) => e.preventDefault());
+
+    // Keyboard Space or Enter also triggers serve or swing cleanly
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' || e.key === ' ' || e.code === 'Enter') {
+        if (this.onPointerTap) {
+          this.onPointerTap();
+        }
+        this.triggerSwing({ x: 0, y: 0.2, z: -1 }, 0.75);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
   }
 
   private handlePointerDown(clientX: number, clientY: number): void {
     const now = performance.now();
     this.recordSample(clientX, clientY, now);
     this.updatePositionFromScreen(clientX, clientY);
+
+    if (this.onPointerTap) {
+      this.onPointerTap();
+    }
 
     // Optional click-to-swing: Clicking also allows immediate swing trigger
     // Especially helpful for trackpad users who tap/click to swing!
@@ -122,6 +142,9 @@ export class InputController {
     const now = performance.now();
     // On touch release, evaluate if the release was the completion of a flick gesture
     this.evaluateSwingFromGesture(clientX, clientY, now, false);
+    if (this.onPointerRelease) {
+      this.onPointerRelease();
+    }
     this.pointerHistory = [];
   }
 
@@ -142,20 +165,31 @@ export class InputController {
     const ndcY = -(((clientY - rect.top) / rect.height) * 2 - 1);
 
     this.raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
+
+    // 1. Forward / Backward Depth (Z) mapping:
+    // Pushing mouse forward (higher on screen, ndcY > -0.20) reaches forward over table towards net (down to Z ~ 0.95m)
+    // Pulling mouse backward (lower on screen, ndcY < -0.20) steps back behind table (up to Z ~ 2.05m)
+    const forwardReach = (ndcY + 0.20) * 1.35;
+    let targetZ = Math.max(0.95, Math.min(2.05, PLAYER_PADDLE_Z - forwardReach));
+
+    const planeAtZ = new THREE.Plane(new THREE.Vector3(0, 0, 1), -targetZ);
     const intersectionPoint = new THREE.Vector3();
-    const hit = this.raycaster.ray.intersectPlane(this.planeZ, intersectionPoint);
+    const hit = this.raycaster.ray.intersectPlane(planeAtZ, intersectionPoint);
 
     if (hit) {
       const targetX = Math.max(PADDLE_MIN_X, Math.min(PADDLE_MAX_X, hit.x * this.sensitivity));
-      const targetY = Math.max(PADDLE_MIN_Y, Math.min(PADDLE_MAX_Y, hit.y));
+      const minY = getMinPaddleY(targetX, targetZ);
+      const targetY = Math.max(minY, Math.min(PADDLE_MAX_Y, hit.y));
 
       this.targetPos.x = targetX;
       this.targetPos.y = targetY;
+      this.targetPos.z = targetZ;
 
       // Smooth initial placement without sudden jump
       if (!this.hasReceivedInitialPointer) {
         this.currentPaddle.pos.x = targetX;
         this.currentPaddle.pos.y = targetY;
+        this.currentPaddle.pos.z = targetZ;
         this.hasReceivedInitialPointer = true;
       }
     }
@@ -233,51 +267,62 @@ export class InputController {
     // 1. Update swing state machine
     this.swingState.update(dt);
 
-    // 2. Base paddle tracking (instant responsive 1:1 feel with smooth anti-jitter)
-    const smoothing = Math.min(1.0, 60 * dt);
+    // 2. Base paddle tracking in 3D (X, Y, and forward/backward Z!)
+    const smoothing = 1.0 - Math.exp(-36 * dt);
     const cur = this.currentPaddle.pos;
     const prevX = cur.x;
     const prevY = cur.y;
+    const prevZ = cur.z;
 
     cur.x += (this.targetPos.x - cur.x) * smoothing;
     cur.y += (this.targetPos.y - cur.y) * smoothing;
+    cur.z += (this.targetPos.z - cur.z) * smoothing;
 
-    // 3. Apply swing displacement offsets
-    const baseZ = PLAYER_PADDLE_Z;
-    cur.z = baseZ + this.swingState.offset.z;
-    const effectiveX = cur.x + this.swingState.offset.x;
-    const effectiveY = cur.y + this.swingState.offset.y;
+    // Table clearance constraint: blade center must never clip into table
+    const curMinY = getMinPaddleY(cur.x, cur.z);
+    if (cur.y < curMinY) {
+      cur.y = curMinY;
+    }
 
-    // 4. Calculate total paddle velocity (tracking velocity + swing velocity)
+    const effectiveX = Math.max(PADDLE_MIN_X, Math.min(PADDLE_MAX_X, cur.x));
+    const effectiveY = Math.max(curMinY, Math.min(PADDLE_MAX_Y, cur.y));
+    const effectiveZ = cur.z;
+
+    // 4. Calculate total paddle velocity in 3D (tracking velocity + swing velocity)
     const trackingVx = dt > 0.0001 ? (cur.x - prevX) / dt : 0;
     const trackingVy = dt > 0.0001 ? (cur.y - prevY) / dt : 0;
+    const trackingVz = dt > 0.0001 ? (cur.z - prevZ) / dt : 0;
+
+    const swingVx = this.swingState.phase === 'forward' ? this.swingState.velocity.x : 0;
+    const swingVy = this.swingState.phase === 'forward' ? this.swingState.velocity.y : 0;
+    const swingVz = this.swingState.phase === 'forward' ? this.swingState.velocity.z : 0;
 
     this.currentPaddle.vel = {
-      x: trackingVx + this.swingState.velocity.x,
-      y: trackingVy + this.swingState.velocity.y,
-      z: this.swingState.velocity.z
+      x: trackingVx + swingVx,
+      y: trackingVy + swingVy,
+      z: trackingVz + swingVz
     };
 
     // 5. Paddle 3D Orientation (tilt)
-    // Base natural tilt based on X position and height
-    const baseTiltX = -0.12 + (cur.y - TABLE_HEIGHT) * -0.08;
-    const baseTiltY = (cur.x / 1.0) * 0.35;
-    const baseTiltZ = -(cur.x / 1.0) * 0.22;
+    // Smooth natural ergonomic tilt: when reaching forward towards table, blade tilts forward into ready topspin stance
+    const tableCloseness = Math.max(0, 1.0 - (cur.z - 1.37) / 0.50);
+    const targetTiltX = -0.14 - tableCloseness * 0.16;
+    const targetTiltY = (cur.x / 1.0) * 0.22;
+    const targetTiltZ = -0.20 - (cur.x / 1.0) * 0.30;
 
-    this.currentPaddle.rot = {
-      x: baseTiltX + this.swingState.tilt.x,
-      y: baseTiltY + this.swingState.tilt.y,
-      z: baseTiltZ + this.swingState.tilt.z
-    };
+    const rotSmoothing = 1.0 - Math.exp(-24 * dt);
+    this.currentPaddle.rot.x += (targetTiltX - this.currentPaddle.rot.x) * rotSmoothing;
+    this.currentPaddle.rot.y += (targetTiltY - this.currentPaddle.rot.y) * rotSmoothing;
+    this.currentPaddle.rot.z += (targetTiltZ - this.currentPaddle.rot.z) * rotSmoothing;
 
-    this.currentPaddle.isSwinging = this.swingState.phase !== 'idle';
+    this.currentPaddle.isSwinging = this.swingState.phase === 'forward';
     this.currentPaddle.swingPhase = this.swingState.phase;
 
     this.inputSeq++;
     return {
       seq: this.inputSeq,
       timestamp: Date.now(),
-      targetPos: { x: effectiveX, y: effectiveY, z: cur.z },
+      targetPos: { x: effectiveX, y: effectiveY, z: effectiveZ },
       velocity: { ...this.currentPaddle.vel },
       swingPower: this.swingState.strength,
       isSwinging: this.currentPaddle.isSwinging,
@@ -287,8 +332,10 @@ export class InputController {
   }
 
   public setPosition(x: number, y: number, z: number): void {
-    this.targetPos = { x, y, z };
-    this.currentPaddle.pos = { x, y, z };
+    const minY = getMinPaddleY(x, z);
+    const safeY = Math.max(minY, Math.min(PADDLE_MAX_Y, y));
+    this.targetPos = { x, y: safeY, z };
+    this.currentPaddle.pos = { x, y: safeY, z };
     this.swingState.reset();
   }
 

@@ -12,6 +12,8 @@ export type AIDifficulty = 'easy' | 'medium' | 'hard';
 export interface BallState {
   pos: Vector3D;
   vel: Vector3D;
+  spin?: Vector3D; // Angular velocity in rad/s: x = topspin(+)/backspin(-), y = sidespin (right(+)/left(-)), z = corkscrew
+  serveState?: 'held' | 'tossed' | 'in_play'; // 'held' in palm/ready, 'tossed' rising/falling, 'in_play' once struck
   lastHitter: PlayerSide | null;
   // Track bounce on table for table tennis rules
   bounceCountCurrentSide: number;
@@ -20,6 +22,7 @@ export interface BallState {
   hasBouncedOnReceiverSide: boolean;
   isServe: boolean;
   active: boolean;
+  netTouched?: boolean; // Whether ball touched net assembly in current flight
 }
 
 export interface PaddleState {
@@ -56,7 +59,9 @@ export type SoundEventType =
   | 'net_hit'
   | 'score'
   | 'applause'
-  | 'fault';
+  | 'fault'
+  | 'let'
+  | 'toss';
 
 export interface SoundEvent {
   type: SoundEventType;
@@ -116,7 +121,7 @@ export interface RoomState {
 
 // Client to Server socket events
 export interface ClientToServerEvents {
-  'party:create': (data: { playerName: string; flag?: string }, callback: (res: { success: boolean; code?: string; error?: string }) => void) => void;
+  'party:create': (data: { playerName: string; flag?: string }, callback: (res: { success: boolean; code?: string; room?: RoomState; error?: string }) => void) => void;
   'party:join': (data: { code: string; playerName: string; flag?: string }, callback: (res: { success: boolean; room?: RoomState; error?: string }) => void) => void;
   'party:ready': (data: { isReady: boolean }) => void;
   'party:start': () => void;

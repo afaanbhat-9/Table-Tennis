@@ -20,17 +20,19 @@ export class TableMesh {
   }
 
   private buildTable(): void {
-    // 1. Table Top Surface
+    // 1. Table Top Surface with crisp 22mm white edge rim matching reference image
+    const topThickness = 0.022; // 22mm ITTF championship slab
     const topGeometry = new THREE.BoxGeometry(
       TABLE_WIDTH,
-      TABLE_THICKNESS,
+      topThickness,
       TABLE_LENGTH
     );
 
     const tableTexture = TextureGenerator.createTableTexture();
+    // Crisp white top perimeter rim as seen in reference image
     const tableSideMat = new THREE.MeshStandardMaterial({
-      color: 0x007a91,
-      roughness: 0.38,
+      color: 0xffffff,
+      roughness: 0.32,
       metalness: 0.05
     });
 
@@ -39,80 +41,57 @@ export class TableMesh {
       tableSideMat, // left (-X)
       new THREE.MeshStandardMaterial({
         map: tableTexture,
-        roughness: 0.35,
-        metalness: 0.04
+        roughness: 0.36,
+        metalness: 0.03
       }), // top (+Y)
-      new THREE.MeshStandardMaterial({ color: 0x1f1f22, roughness: 0.85 }), // bottom (-Y)
+      new THREE.MeshStandardMaterial({ color: 0x101318, roughness: 0.9 }), // bottom (-Y)
       tableSideMat, // front (+Z)
       tableSideMat  // back (-Z)
     ];
 
     const tableTop = new THREE.Mesh(topGeometry, materials);
-    tableTop.position.y = TABLE_HEIGHT - TABLE_THICKNESS / 2;
+    tableTop.position.y = TABLE_HEIGHT - topThickness / 2;
     tableTop.receiveShadow = true;
     tableTop.castShadow = true;
     this.group.add(tableTop);
 
-    // 2. Corner Protection Brackets (Dark metallic caps on 4 corners)
-    const capSize = 0.035;
-    const capThickness = TABLE_THICKNESS + 0.004;
-    const cornerCapGeo = new THREE.BoxGeometry(capSize, capThickness, capSize);
-    const cornerCapMat = new THREE.MeshStandardMaterial({
-      color: 0x22262e,
-      roughness: 0.35,
-      metalness: 0.8
-    });
-
-    const cornerOffsets = [
-      [-TABLE_WIDTH / 2 + capSize / 2, -TABLE_LENGTH / 2 + capSize / 2],
-      [TABLE_WIDTH / 2 - capSize / 2, -TABLE_LENGTH / 2 + capSize / 2],
-      [-TABLE_WIDTH / 2 + capSize / 2, TABLE_LENGTH / 2 - capSize / 2],
-      [TABLE_WIDTH / 2 - capSize / 2, TABLE_LENGTH / 2 - capSize / 2]
-    ];
-
-    for (const [cx, cz] of cornerOffsets) {
-      const cap = new THREE.Mesh(cornerCapGeo, cornerCapMat);
-      cap.position.set(cx, TABLE_HEIGHT - TABLE_THICKNESS / 2, cz);
-      this.group.add(cap);
-    }
-
-    // 3. Table Apron / Under-frame (crisp anodized silver metallic frame under top)
-    const apronDepth = 0.05;
-    const apronThickness = 0.022;
+    // 2. Table Apron / Under-frame (dark matte graphite steel chassis matching reference)
+    const apronDepth = 0.058;
+    const apronThickness = 0.024;
     const apronMat = new THREE.MeshStandardMaterial({
-      color: 0xd1d7e0,
-      roughness: 0.3,
-      metalness: 0.75
+      color: 0x141820,
+      roughness: 0.45,
+      metalness: 0.65
     });
 
     // Left & Right aprons
-    const sideApronGeo = new THREE.BoxGeometry(apronThickness, apronDepth, TABLE_LENGTH - 0.04);
+    const sideApronGeo = new THREE.BoxGeometry(apronThickness, apronDepth, TABLE_LENGTH - 0.02);
     const leftApron = new THREE.Mesh(sideApronGeo, apronMat);
-    leftApron.position.set(-TABLE_WIDTH / 2 + apronThickness / 2 + 0.01, TABLE_HEIGHT - TABLE_THICKNESS - apronDepth / 2, 0);
+    leftApron.position.set(-TABLE_WIDTH / 2 + apronThickness / 2 + 0.005, TABLE_HEIGHT - topThickness - apronDepth / 2, 0);
     this.group.add(leftApron);
 
     const rightApron = new THREE.Mesh(sideApronGeo, apronMat);
-    rightApron.position.set(TABLE_WIDTH / 2 - apronThickness / 2 - 0.01, TABLE_HEIGHT - TABLE_THICKNESS - apronDepth / 2, 0);
+    rightApron.position.set(TABLE_WIDTH / 2 - apronThickness / 2 - 0.005, TABLE_HEIGHT - topThickness - apronDepth / 2, 0);
     this.group.add(rightApron);
 
     // Front & Back aprons
-    const endApronGeo = new THREE.BoxGeometry(TABLE_WIDTH - 0.04, apronDepth, apronThickness);
+    const endApronGeo = new THREE.BoxGeometry(TABLE_WIDTH - 0.02, apronDepth, apronThickness);
     const frontApron = new THREE.Mesh(endApronGeo, apronMat);
-    frontApron.position.set(0, TABLE_HEIGHT - TABLE_THICKNESS - apronDepth / 2, TABLE_LENGTH / 2 - apronThickness / 2 - 0.01);
+    frontApron.position.set(0, TABLE_HEIGHT - topThickness - apronDepth / 2, TABLE_LENGTH / 2 - apronThickness / 2 - 0.005);
     this.group.add(frontApron);
 
     const backApron = new THREE.Mesh(endApronGeo, apronMat);
-    backApron.position.set(0, TABLE_HEIGHT - TABLE_THICKNESS - apronDepth / 2, -TABLE_LENGTH / 2 + apronThickness / 2 + 0.01);
+    backApron.position.set(0, TABLE_HEIGHT - topThickness - apronDepth / 2, -TABLE_LENGTH / 2 + apronThickness / 2 + 0.005);
     this.group.add(backApron);
 
-    // 4. Sturdy Competition Legs & Undercarriage
-    const legWidth = 0.06;
-    const legHeight = TABLE_HEIGHT - TABLE_THICKNESS;
+    // 3. Sturdy Competition Legs & Undercarriage (dark charcoal steel)
+    const legWidth = 0.055;
+    const legHeight = TABLE_HEIGHT - topThickness;
     const legGeo = new THREE.BoxGeometry(legWidth, legHeight, legWidth);
     const legMat = new THREE.MeshStandardMaterial({
-      color: 0x16181c,
+      color: 0x12141a,
       roughness: 0.45,
-      metalness: 0.7
+      metalness: 0.75
     });
 
     const legInsetX = TABLE_WIDTH / 2 - 0.14;
@@ -136,7 +115,7 @@ export class TableMesh {
 
       // Rubber foot pad
       const footGeo = new THREE.CylinderGeometry(0.04, 0.045, 0.015, 16);
-      const footMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.9 });
+      const footMat = new THREE.MeshStandardMaterial({ color: 0x0a0c10, roughness: 0.9 });
       const foot = new THREE.Mesh(footGeo, footMat);
       foot.position.set(lx, 0.008, lz);
       this.group.add(foot);
@@ -156,6 +135,40 @@ export class TableMesh {
     const centerBrace = new THREE.Mesh(centerBraceGeo, legMat);
     centerBrace.position.set(0, 0.18, 0);
     this.group.add(centerBrace);
+
+    // Center rollaway caster wheels matching reference image undercarriage
+    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x181a20, roughness: 0.35, metalness: 0.6 });
+    const wheelRimMat = new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.3, metalness: 0.85 });
+    const wheelPositions = [
+      [-legInsetX + 0.12, -0.15],
+      [-legInsetX + 0.12, 0.15],
+      [legInsetX - 0.12, -0.15],
+      [legInsetX - 0.12, 0.15]
+    ];
+
+    for (const [wx, wz] of wheelPositions) {
+      const wheelGroup = new THREE.Group();
+      const wheelGeo = new THREE.CylinderGeometry(0.045, 0.045, 0.024, 16);
+      wheelGeo.rotateZ(Math.PI / 2);
+      const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+      wheelGroup.add(wheel);
+
+      // Hubcap
+      const hubGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.026, 16);
+      hubGeo.rotateZ(Math.PI / 2);
+      const hub = new THREE.Mesh(hubGeo, wheelRimMat);
+      wheelGroup.add(hub);
+
+      // Vertical caster stem
+      const stemGeo = new THREE.CylinderGeometry(0.012, 0.012, 0.09, 12);
+      const stem = new THREE.Mesh(stemGeo, legMat);
+      stem.position.y = 0.045;
+      wheelGroup.add(stem);
+
+      wheelGroup.position.set(wx, 0.045, wz);
+      wheelGroup.castShadow = true;
+      this.group.add(wheelGroup);
+    }
   }
 
   private buildNet(): void {
@@ -164,9 +177,10 @@ export class TableMesh {
     const netMat = new THREE.MeshStandardMaterial({
       map: netTexture,
       transparent: true,
+      alphaTest: 0.15,
       side: THREE.DoubleSide,
-      roughness: 0.55,
-      depthWrite: false
+      roughness: 0.95,
+      depthWrite: true
     });
 
     const netMesh = new THREE.Mesh(netGeo, netMat);

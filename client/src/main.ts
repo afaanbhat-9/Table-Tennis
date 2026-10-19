@@ -42,6 +42,7 @@ class GameApp {
   private currentMode: GameMode = 'none';
   private isPaused: boolean = false;
   private lastTime: number = performance.now();
+  private physicsAccumulator: number = 0;
   private isHost: boolean = false;
 
   constructor() {
@@ -59,6 +60,22 @@ class GameApp {
     this.inputController.onSwingTriggered = (strength) => {
       this.uiManager.showSwingIndicator(strength);
       this.soundManager.playPaddleHit(0.35 * strength);
+    };
+
+    // Click or tap to serve immediately and reliably
+    this.inputController.onPointerTap = () => {
+      if (
+        this.currentMode === 'singleplayer' &&
+        this.spPhase === 'serving' &&
+        this.spRules.serve.server === 'player1' &&
+        this.spPhysics.ball.isServe &&
+        (this.spPhysics.ball.serveState === 'held' || this.spPhysics.ball.serveState === 'tossed')
+      ) {
+        this.spPhysics.launchServe('player1', this.inputController.targetPos.x);
+        this.spPhase = 'in_play';
+        this.soundManager.playPaddleHit(0.85);
+        this.sceneManager.triggerHitEffect(this.spPhysics.ball.pos);
+      }
     };
 
     this.uiManager = new UIManager({
@@ -90,12 +107,18 @@ class GameApp {
       document.getElementById('modal-main-menu')!.style.display = 'none';
       document.getElementById('modal-party')!.style.display = 'flex';
       this.uiManager.setPartyTab('create');
+    } else if (params.get('modal') === 'rules') {
+      document.getElementById('modal-main-menu')!.style.display = 'none';
+      document.getElementById('modal-how-to-play')!.style.display = 'flex';
     } else if (params.get('party')) {
       const code = params.get('party')!;
       document.getElementById('modal-main-menu')!.style.display = 'none';
       document.getElementById('modal-party')!.style.display = 'flex';
       this.uiManager.setPartyTab('join');
-      (document.getElementById('input-party-code') as HTMLInputElement).value = code;
+    } else if (params.get('autocreate') === '1') {
+      document.getElementById('modal-main-menu')!.style.display = 'none';
+      document.getElementById('modal-party')!.style.display = 'flex';
+      this.handleCreateParty('Host Player');
     }
   }
 
@@ -177,7 +200,10 @@ class GameApp {
     };
 
     this.netClient.onPartyLeft = () => {
-      this.returnToMainMenu();
+      if (this.currentMode === 'multiplayer') {
+        this.uiManager.showToast('Left the party room');
+        this.returnToMainMenu();
+      }
     };
   }
 
@@ -199,14 +225,19 @@ class GameApp {
     this.uiManager.updateScoreboard(this.spRules.score, 'player1');
     this.uiManager.showControlHint(4500);
 
-    this.inputController.setPosition(0.25, TABLE_HEIGHT + 0.16, PLAYER_PADDLE_Z);
+    const params = new URLSearchParams(window.location.search);
+    const testBatY = params.get('test_bat_y') ? parseFloat(params.get('test_bat_y')!) : (TABLE_HEIGHT + 0.12);
+    const testBatZ = params.get('test_bat_z') ? parseFloat(params.get('test_bat_z')!) : PLAYER_PADDLE_Z;
+    this.inputController.setPosition(0.0, testBatY, testBatZ);
     this.startSinglePlayerCountdown();
   }
 
   private startSinglePlayerCountdown(): void {
     this.spPhase = 'countdown';
     this.spCountdown = 3;
-    this.spPhysics.prepareServe(this.spRules.serve.server);
+    const isPlayerServer = this.spRules.serve.server === 'player1';
+    const serveX = isPlayerServer ? 0.0 : this.spAI.selectServePosition();
+    this.spPhysics.prepareServe(this.spRules.serve.server, serveX);
     this.uiManager.showAnnouncement('3', 'Ready...', 900);
     this.soundManager.playButtonClick();
 
@@ -230,14 +261,17 @@ class GameApp {
 
   private spBeginServe(): void {
     this.spPhase = 'serving';
-    this.spPhaseTimer = 1.4;
-    this.spPhysics.prepareServe(this.spRules.serve.server);
+    const isPlayerServer = this.spRules.serve.server === 'player1';
+    this.spPhaseTimer = isPlayerServer ? 4.0 : 2.5;
+    const serveX = isPlayerServer ? this.inputController.targetPos.x : this.spAI.selectServePosition();
+    this.spPhysics.prepareServe(this.spRules.serve.server, serveX);
   }
 
   private updateSinglePlayer(dt: number): void {
     if (this.isPaused) return;
 
     // 1. Update player paddle from input
+    this.inputController.activeBall = this.spPhysics.ball;
     const input = this.inputController.update(dt);
     this.spPhysics.paddle1.pos = { x: input.targetPos.x, y: input.targetPos.y, z: input.targetPos.z };
     this.spPhysics.paddle1.vel = { ...this.inputController.currentPaddle.vel };
@@ -249,7 +283,20 @@ class GameApp {
     this.spAI.update(dt, this.spPhysics.ball, this.spPhysics.paddle2);
 
     // 3. State handling
+    if (this.spPhase === 'countdown') {
+      this.spPhysics.updateServeBall(this.spRules.serve.server);
+      return;
+    }
+
     if (this.spPhase === 'serving') {
+      const isPlayerServer = this.spRules.serve.server === 'player1';
+
+      // CPU serve toss assistance
+      if (!isPlayerServer && this.spPhysics.ball.serveState === 'held' && this.spPhaseTimer <= 1.8) {
+        const snd = this.spPhysics.tossServe('player2');
+        if (snd) this.soundManager.playPaddleHit(0.4);
+      }
+
       const stepRes = this.spPhysics.step(dt, SUB_STEPS);
       for (const snd of stepRes.soundEvents) {
         if (snd.type === 'paddle_hit') {
@@ -258,17 +305,37 @@ class GameApp {
           if (this.spRules.serve.server === 'player1') {
             this.inputController.triggerHitSwing();
           }
+        } else if (snd.type === 'table_hit') {
+          this.soundManager.playTableBounce(snd.intensity);
+          this.sceneManager.triggerHitEffect(snd.pos);
+        } else if (snd.type === 'net_hit') {
+          this.soundManager.playNetHit();
         }
       }
 
+      // ITTF Let service replay
+      if (stepRes.isLet) {
+        this.soundManager.playNetHit();
+        this.uiManager.showAnnouncement('LET!', 'Ball clipped net — Re-serve', 1600);
+        this.spBeginServe();
+        return;
+      }
+
       // Check if server struck the ball into play
-      if (this.spPhysics.ball.active) {
+      if (
+        this.spPhysics.ball.active &&
+        this.spPhysics.ball.serveState !== 'held' &&
+        this.spPhysics.ball.serveState !== 'tossed'
+      ) {
         this.spPhase = 'in_play';
       } else {
+        // Serve timeout assistance: auto-launches cleanly so the ball NEVER gets stuck
         this.spPhaseTimer -= dt;
         if (this.spPhaseTimer <= 0) {
           const server = this.spRules.serve.server;
-          const targetX = (Math.random() - 0.5) * 0.4;
+          const targetX = server === 'player1'
+            ? this.inputController.targetPos.x
+            : (this.spAI.chosenServeTargetX !== undefined ? this.spAI.chosenServeTargetX : (Math.random() - 0.5) * 0.4);
           this.spPhysics.launchServe(server, targetX);
           this.spPhase = 'in_play';
           this.soundManager.playPaddleHit(0.85);
@@ -305,6 +372,14 @@ class GameApp {
         }
       }
 
+      // Check for mid-rally let or service let
+      if (result.isLet) {
+        this.soundManager.playNetHit();
+        this.uiManager.showAnnouncement('LET!', 'Ball clipped net — Re-serve', 1600);
+        this.spBeginServe();
+        return;
+      }
+
       if (result.pointEnded && result.pointWinner) {
         this.handleSinglePlayerPoint(result.pointWinner, result.pointReason || 'Point');
       }
@@ -331,24 +406,32 @@ class GameApp {
       }, 1000);
     } else {
       this.spPhase = 'point_scored';
-      this.spPhaseTimer = 1.8;
+      this.spPhaseTimer = 2.0;
     }
   }
 
   // --- MULTIPLAYER FLOW ---
   private async handleCreateParty(playerName: string): Promise<void> {
     this.isHost = true;
+    this.uiManager.showPartyLoading('Creating private room...');
     const res = await this.netClient.createParty(playerName);
-    if (!res.success) {
-      this.uiManager.showToast(res.error || 'Failed to create party');
+    if (res.success && res.room) {
+      this.currentMode = 'multiplayer';
+      this.uiManager.showPartyLobby(res.room, true);
+    } else {
+      this.uiManager.showPartyError(res.error || 'Failed to create room. Please check server connection and retry.');
     }
   }
 
   private async handleJoinParty(code: string, playerName: string): Promise<void> {
     this.isHost = false;
+    this.uiManager.showPartyLoading('Connecting to party room...');
     const res = await this.netClient.joinParty(code, playerName);
-    if (!res.success) {
-      this.uiManager.showToast(res.error || 'Failed to join party');
+    if (res.success && res.room) {
+      this.currentMode = 'multiplayer';
+      this.uiManager.showPartyLobby(res.room, false);
+    } else {
+      this.uiManager.showPartyError(res.error || 'Party code not found, expired, or room is full.');
     }
   }
 
@@ -417,26 +500,32 @@ class GameApp {
     const loop = (time: number) => {
       requestAnimationFrame(loop);
 
-      const dt = Math.min((time - this.lastTime) / 1000, 0.05); // clamp max dt to 50ms
+      const rawDt = Math.min((time - this.lastTime) / 1000, 0.05); // clamp max dt to 50ms
       this.lastTime = time;
 
       if (this.currentMode === 'singleplayer') {
-        this.updateSinglePlayer(dt);
+        this.physicsAccumulator += rawDt;
+        // Fixed 60Hz physics integration loop
+        while (this.physicsAccumulator >= PHYSICS_DT) {
+          this.updateSinglePlayer(PHYSICS_DT);
+          this.physicsAccumulator -= PHYSICS_DT;
+        }
+
         this.sceneManager.updateGameState(
           this.spPhysics.ball,
           this.spPhysics.paddle1,
           this.spPhysics.paddle2,
-          dt
+          rawDt
         );
       } else if (this.currentMode === 'multiplayer') {
-        this.updateMultiplayer(dt);
+        this.updateMultiplayer(rawDt);
       } else {
         // Idle menu scene
         this.sceneManager.updateGameState(
           this.spPhysics.ball,
           this.spPhysics.paddle1,
           this.spPhysics.paddle2,
-          dt
+          rawDt
         );
       }
 
@@ -449,5 +538,5 @@ class GameApp {
 
 // Start application when DOM is ready
 window.addEventListener('DOMContentLoaded', () => {
-  new GameApp();
+  (window as any).gameApp = new GameApp();
 });

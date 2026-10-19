@@ -16,7 +16,7 @@ export const DEFAULT_SWING_CONFIG: SwingConfig = {
   forwardDuration: 0.075,
   followthroughDuration: 0.085,
   recoveryDuration: 0.110,
-  maxForwardDist: 0.22,
+  maxForwardDist: 0.16,
   maxSpeed: 9.5
 };
 

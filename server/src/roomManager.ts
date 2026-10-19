@@ -50,10 +50,10 @@ export class RoomManager {
     socket: Socket<ClientToServerEvents, ServerToClientEvents>,
     playerName: string,
     flag?: string
-  ): { success: boolean; code?: string; error?: string } {
-    // Check if player is already in a room
+  ): { success: boolean; code?: string; room?: RoomState; error?: string } {
+    // Check if player is already in a room; leave without triggering a self-dismissal party:left
     if (this.socketToRoom.has(socket.id)) {
-      this.leaveParty(socket);
+      this.leaveParty(socket, false);
     }
 
     const code = this.generateUniqueCode();
@@ -73,7 +73,10 @@ export class RoomManager {
 
     socket.join(code);
 
-    return { success: true, code };
+    const roomState = this.getRoomState(room);
+    this.io.to(code).emit('party:updated', roomState);
+
+    return { success: true, code, room: roomState };
   }
 
   public joinParty(
@@ -179,14 +182,16 @@ export class RoomManager {
     room.handleInput(binding.side, input);
   }
 
-  public leaveParty(socket: Socket<ClientToServerEvents, ServerToClientEvents>): void {
+  public leaveParty(socket: Socket<ClientToServerEvents, ServerToClientEvents>, notifySelf: boolean = true): void {
     const binding = this.socketToRoom.get(socket.id);
     if (!binding) return;
 
     const { code, side } = binding;
     this.socketToRoom.delete(socket.id);
     socket.leave(code);
-    socket.emit('party:left');
+    if (notifySelf) {
+      socket.emit('party:left');
+    }
 
     const room = this.rooms.get(code);
     if (!room) return;

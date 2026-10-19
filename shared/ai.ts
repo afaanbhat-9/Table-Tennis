@@ -3,11 +3,14 @@ import {
   TABLE_HEIGHT,
   OPPONENT_PADDLE_Z,
   GRAVITY,
+  AIR_DRAG,
   TABLE_RESTITUTION,
   PADDLE_MIN_X,
   PADDLE_MAX_X,
   PADDLE_MIN_Y,
-  PADDLE_MAX_Y
+  PADDLE_MAX_Y,
+  getMinPaddleY,
+  MAGNUS_COEFFICIENT
 } from './constants.js';
 import { AIDifficulty, BallState, PaddleState, Vector3D } from './types.js';
 
@@ -15,6 +18,7 @@ interface AIDifficultyConfig {
   reactionDelayMs: number;
   predictionError: number;
   maxSpeed: number;
+  lerpRate: number;
   reachLimitX: number;
   swingAggression: number;
   returnPlacementBias: number; // 0 = center, 1 = deep corners
@@ -22,28 +26,31 @@ interface AIDifficultyConfig {
 
 const DIFFICULTY_CONFIGS: Record<AIDifficulty, AIDifficultyConfig> = {
   easy: {
-    reactionDelayMs: 250,
-    predictionError: 0.14,
-    maxSpeed: 2.8,
-    reachLimitX: 0.65,
-    swingAggression: 0.3,
-    returnPlacementBias: 0.2
+    reactionDelayMs: 280,       // Generous human-like reaction delay for Casual (relaxing pace)
+    predictionError: 0.12,      // Natural inaccuracies, can miss wide or fast angled shots
+    maxSpeed: 2.2,              // Relaxed movement speed (won't sprint to impossible corners)
+    lerpRate: 7.0,              // Smooth, gentle movement interpolation
+    reachLimitX: 0.60,          // Cannot reach extreme table edge shots
+    swingAggression: 0.15,      // Gentle returns, won't smash aggressively
+    returnPlacementBias: 0.10   // Hits returns safely near center line, easy to rally
   },
   medium: {
-    reactionDelayMs: 130,
-    predictionError: 0.05,
+    reactionDelayMs: 150,
+    predictionError: 0.03,
     maxSpeed: 4.8,
+    lerpRate: 13.0,
     reachLimitX: 0.85,
-    swingAggression: 0.6,
-    returnPlacementBias: 0.6
+    swingAggression: 0.65,
+    returnPlacementBias: 0.55
   },
   hard: {
-    reactionDelayMs: 50,
-    predictionError: 0.015,
+    reactionDelayMs: 120,
+    predictionError: 0.005,
     maxSpeed: 7.2,
-    reachLimitX: 0.95,
-    swingAggression: 0.9,
-    returnPlacementBias: 0.85
+    lerpRate: 18.0,
+    reachLimitX: 0.98,
+    swingAggression: 0.95,
+    returnPlacementBias: 0.88
   }
 };
 
@@ -53,14 +60,15 @@ export class TableTennisAI {
 
   private currentTarget: Vector3D = {
     x: 0,
-    y: TABLE_HEIGHT + 0.18,
+    y: TABLE_HEIGHT + 0.14,
     z: OPPONENT_PADDLE_Z
   };
   private targetOffset: { x: number; y: number } = { x: 0, y: 0 };
   private lastBallVelZ: number = 0;
-  private timeSinceBallTurned: number = 0;
   private reactionTimer: number = 0;
   private isReacting: boolean = false;
+  private strategicAimX: number = 0;
+  private serveCount: number = 0;
 
   constructor(difficulty: AIDifficulty = 'medium') {
     this.difficulty = difficulty;
@@ -72,28 +80,65 @@ export class TableTennisAI {
     this.config = DIFFICULTY_CONFIGS[difficulty];
   }
 
+  public chosenServeX: number = 0;
+  public chosenServeTargetX: number = 0;
+
+  /**
+   * Selects varied, authentic ITTF serving stances (wide forehand, wide backhand, mid, center)
+   * and targets across the receiver's court (cross-court corners, sidelines, body serves).
+   */
+  public selectServePosition(): number {
+    if (this.difficulty === 'easy') {
+      // Casual bot: serves from comfortable near-center positions with gentle, centered targets
+      const stances = [-0.15, 0.15, 0.0];
+      this.chosenServeX = stances[this.serveCount % stances.length];
+      this.serveCount++;
+      const targets = [-0.08, 0.08, 0.0];
+      this.chosenServeTargetX = targets[Math.floor(Math.random() * targets.length)];
+      return this.chosenServeX;
+    }
+
+    // Varied legal stances across table width (-0.76m to +0.76m) for Pro / Master:
+    const stances = [-0.46, 0.46, -0.28, 0.28, 0.0];
+    const base = stances[this.serveCount % stances.length];
+    this.serveCount++;
+    this.chosenServeX = base + (Math.random() - 0.5) * 0.04;
+
+    // Strategically aim across the player's side of the table (never just down the middle):
+    const targets = [
+      -this.chosenServeX * 0.85, // Cross-court angle
+      this.chosenServeX * 0.75,  // Down the line
+      (Math.random() > 0.5 ? 0.38 : -0.38), // Wide corner
+      (Math.random() > 0.5 ? 0.22 : -0.22)  // Mid-wing
+    ];
+    this.chosenServeTargetX = targets[Math.floor(Math.random() * targets.length)];
+    return this.chosenServeX;
+  }
+
   public reset(): void {
     this.currentTarget = {
       x: 0,
-      y: TABLE_HEIGHT + 0.18,
+      y: TABLE_HEIGHT + 0.14,
       z: OPPONENT_PADDLE_Z
     };
     this.targetOffset = { x: 0, y: 0 };
     this.lastBallVelZ = 0;
-    this.timeSinceBallTurned = 0;
     this.reactionTimer = 0;
     this.isReacting = false;
+    this.strategicAimX = 0;
+    this.chosenServeX = 0;
+    this.chosenServeTargetX = 0;
   }
 
   /**
    * Updates AI paddle position and velocity for the current frame.
    */
   public update(dt: number, ball: BallState, paddle: PaddleState): void {
-    // Check if ball just changed direction towards AI side
-    const ballComingTowardsAI = ball.vel.z < -0.5 && ball.active;
+    // Check if ball is moving towards AI side
+    const ballComingTowardsAI = ball.vel.z < -0.4 && ball.active;
 
-    if (ballComingTowardsAI && this.lastBallVelZ >= -0.5) {
-      // New incoming shot! Generate human-like reaction delay & perception error
+    if (ballComingTowardsAI && this.lastBallVelZ >= -0.4) {
+      // New incoming shot: apply human-like reaction delay and perception error
       this.reactionTimer = this.config.reactionDelayMs / 1000;
       this.isReacting = false;
       const err = this.config.predictionError;
@@ -101,6 +146,10 @@ export class TableTennisAI {
         x: (Math.random() - 0.5) * 2 * err,
         y: (Math.random() - 0.5) * 2 * err
       };
+
+      // Select strategic return placement (centered cleanly within table boundaries)
+      const targetSide = ball.pos.x > 0 ? -1 : 1; // cross-court bias
+      this.strategicAimX = targetSide * (0.15 + Math.random() * 0.16) * this.config.returnPlacementBias;
     }
     this.lastBallVelZ = ball.vel.z;
 
@@ -114,7 +163,7 @@ export class TableTennisAI {
     }
 
     if (this.isReacting && ballComingTowardsAI) {
-      // Predict trajectory at paddle plane
+      // Predict arrival at AI paddle baseline with aerodynamics and table bounce
       const predicted = this.predictBallAtPlane(ball, OPPONENT_PADDLE_Z);
       this.currentTarget = {
         x: predicted.x + this.targetOffset.x,
@@ -122,12 +171,31 @@ export class TableTennisAI {
         z: OPPONENT_PADDLE_Z
       };
 
-      // Swing forward when ball is very close
-      if (ball.pos.z < OPPONENT_PADDLE_Z + 0.4 && ball.pos.z > OPPONENT_PADDLE_Z) {
-        this.currentTarget.z = OPPONENT_PADDLE_Z + 0.12 * this.config.swingAggression;
+      // Forward swing surge when ball is in striking window
+      if (ball.pos.z < OPPONENT_PADDLE_Z + 0.38 && ball.pos.z > OPPONENT_PADDLE_Z - 0.05) {
+        this.currentTarget.z = OPPONENT_PADDLE_Z + 0.14 * this.config.swingAggression;
+        // Lateral brush towards strategic aim target kept controlled
+        this.currentTarget.x += (this.strategicAimX - this.currentTarget.x) * 0.08;
+      }
+    } else if (ball.isServe && ball.lastHitter === 'player2') {
+      if (ball.serveState === 'tossed') {
+        // Strike toss as it descends towards striking height
+        const isDescending = ball.vel.y <= 0.20 && ball.pos.y <= TABLE_HEIGHT + 0.32;
+        this.currentTarget = {
+          x: ball.pos.x,
+          y: Math.max(TABLE_HEIGHT + 0.16, ball.pos.y),
+          z: isDescending ? (OPPONENT_PADDLE_Z + 0.24) : OPPONENT_PADDLE_Z
+        };
+      } else {
+        // Held serve stance: keep stable at chosen serve position
+        this.currentTarget = {
+          x: this.chosenServeX !== 0 ? this.chosenServeX : ball.pos.x,
+          y: TABLE_HEIGHT + 0.18,
+          z: OPPONENT_PADDLE_Z
+        };
       }
     } else {
-      // Reset back to ready stance near center of table
+      // Smooth return to neutral center ready position
       this.currentTarget = {
         x: 0,
         y: TABLE_HEIGHT + 0.18,
@@ -135,86 +203,116 @@ export class TableTennisAI {
       };
     }
 
-    // Apply reach constraint (cannot reach beyond legal anatomical limit)
+    // Apply reach constraint
     this.currentTarget.x = Math.max(
       -this.config.reachLimitX,
       Math.min(this.config.reachLimitX, this.currentTarget.x)
     );
+
+    const minY = getMinPaddleY(this.currentTarget.x, this.currentTarget.z);
     this.currentTarget.y = Math.max(
-      PADDLE_MIN_Y,
+      minY,
       Math.min(PADDLE_MAX_Y, this.currentTarget.y)
     );
 
-    // Smooth movement towards target clamped by maxSpeed
-    const dx = this.currentTarget.x - paddle.pos.x;
-    const dy = this.currentTarget.y - paddle.pos.y;
-    const dz = this.currentTarget.z - paddle.pos.z;
+    // Smooth lerp interpolation towards target capped by maximum movement speed
+    const lerpFactor = 1.0 - Math.exp(-this.config.lerpRate * dt);
+    let targetDx = (this.currentTarget.x - paddle.pos.x) * lerpFactor;
+    let targetDy = (this.currentTarget.y - paddle.pos.y) * lerpFactor;
+    let targetDz = (this.currentTarget.z - paddle.pos.z) * lerpFactor;
 
-    const dist = Math.hypot(dx, dy, dz);
+    const moveDist = Math.hypot(targetDx, targetDy, targetDz);
     const maxMove = this.config.maxSpeed * dt;
 
-    if (dist > 0.001) {
-      const step = Math.min(dist, maxMove);
-      const vx = (dx / dist) * (step / dt);
-      const vy = (dy / dist) * (step / dt);
-      const vz = (dz / dist) * (step / dt);
+    if (moveDist > maxMove) {
+      const scale = maxMove / moveDist;
+      targetDx *= scale;
+      targetDy *= scale;
+      targetDz *= scale;
+    }
 
-      paddle.vel = { x: vx, y: vy, z: vz };
-      paddle.pos.x += vx * dt;
-      paddle.pos.y += vy * dt;
-      paddle.pos.z += vz * dt;
+    if (moveDist > 0.0001 && dt > 0) {
+      paddle.vel = {
+        x: targetDx / dt,
+        y: targetDy / dt,
+        z: targetDz / dt
+      };
+      paddle.pos.x += targetDx;
+      paddle.pos.y += targetDy;
+      paddle.pos.z += targetDz;
     } else {
       paddle.vel = { x: 0, y: 0, z: 0 };
     }
 
-    // Natural paddle tilt (facing forward and slight angle based on X offset)
-    const isSwinging = dz > 0.04 && this.isReacting;
+    // Dynamic clearance clamp so blade never clips into table or frame
+    const actualMinY = getMinPaddleY(paddle.pos.x, paddle.pos.z);
+    if (paddle.pos.y < actualMinY) {
+      paddle.pos.y = actualMinY;
+    }
+
+    // Natural paddle tilt (forward topspin tilt & slight yaw)
+    const isServeStrike = ball.isServe && ball.lastHitter === 'player2' && ball.serveState === 'tossed' && ball.vel.y <= 0.20;
+    const isSwinging = targetDz > 0.03 && (this.isReacting || isServeStrike);
     paddle.isSwinging = isSwinging;
     paddle.swingPhase = isSwinging ? 'forward' : 'idle';
     paddle.rot = {
-      x: isSwinging ? 0.3 : 0.1, // forward topspin lean
-      y: (paddle.pos.x / 1.0) * -0.3,
-      z: -(paddle.pos.x / 1.0) * 0.2
+      x: isSwinging ? 0.32 : 0.14, // forward topspin lean
+      y: (paddle.pos.x / 1.0) * -0.28,
+      z: -(paddle.pos.x / 1.0) * 0.18
     };
   }
 
   /**
-   * Predicts where the ball will arrive when its Z reaches targetZ.
+   * Fast forward trajectory simulation accounting for gravity, drag, and table bounce.
    */
   private predictBallAtPlane(ball: BallState, targetZ: number): Vector3D {
     if (Math.abs(ball.vel.z) < 0.1) {
       return { x: ball.pos.x, y: ball.pos.y, z: targetZ };
     }
 
-    const t = (targetZ - ball.pos.z) / ball.vel.z;
-    if (t <= 0 || t > 2.0) {
+    // Time estimate to reach target plane
+    const tEstimate = (targetZ - ball.pos.z) / ball.vel.z;
+    if (tEstimate <= 0 || tEstimate > 2.5) {
       return { x: ball.pos.x, y: ball.pos.y, z: targetZ };
     }
 
-    // Simple forward projection
-    let predX = ball.pos.x + ball.vel.x * t;
+    let simX = ball.pos.x;
+    let simY = ball.pos.y;
+    let simZ = ball.pos.z;
+    let simVx = ball.vel.x;
+    let simVy = ball.vel.y;
+    let simVz = ball.vel.z;
 
-    // Vertical trajectory taking into account gravity and bounce if it hits table
-    let currentY = ball.pos.y;
-    let currentVy = ball.vel.y;
-    let remainingT = t;
-    const simDt = 0.02;
+    const simDt = 0.015;
+    const maxSteps = Math.min(160, Math.ceil(tEstimate / simDt) + 10);
 
-    while (remainingT > 0) {
-      const step = Math.min(remainingT, simDt);
-      currentVy -= GRAVITY * step;
-      currentY += currentVy * step;
-
-      if (currentY <= TABLE_HEIGHT + BALL_RADIUS) {
-        currentY = TABLE_HEIGHT + BALL_RADIUS;
-        currentVy = -currentVy * TABLE_RESTITUTION;
+    for (let step = 0; step < maxSteps; step++) {
+      if (simZ <= targetZ) {
+        break;
       }
-      remainingT -= step;
+
+      // Physics integration step
+      const spd = Math.hypot(simVx, simVy, simVz);
+      const drag = AIR_DRAG * spd;
+
+      simVx -= simVx * drag * simDt;
+      simVy += (-GRAVITY - simVy * drag) * simDt;
+      simVz -= simVz * drag * simDt;
+
+      simX += simVx * simDt;
+      simY += simVy * simDt;
+      simZ += simVz * simDt;
+
+      // Table bounce simulation
+      if (simY <= TABLE_HEIGHT + BALL_RADIUS) {
+        simY = TABLE_HEIGHT + BALL_RADIUS;
+        simVy = Math.abs(simVy) * TABLE_RESTITUTION;
+      }
     }
 
     return {
-      x: predX,
-      y: Math.max(TABLE_HEIGHT + 0.05, currentY),
+      x: Math.max(PADDLE_MIN_X, Math.min(PADDLE_MAX_X, simX)),
+      y: Math.max(TABLE_HEIGHT + 0.08, Math.min(PADDLE_MAX_Y, simY)),
       z: targetZ
     };
   }

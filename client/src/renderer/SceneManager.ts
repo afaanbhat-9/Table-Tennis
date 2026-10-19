@@ -22,13 +22,14 @@ export class SceneManager {
   constructor(container: HTMLElement) {
     this.container = container;
 
-    // 1. Scene
+    // 1. Scene: Warm anime gymnasium atmosphere matching the anime school gym aesthetic
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0xbab09e);
+    this.scene.background = new THREE.Color(0xf6ede2);
+    this.scene.fog = new THREE.FogExp2(0xf5ebe1, 0.012);
 
-    // 2. Camera: Zoomed out for comfortable elevated view matching reference proportions
+    // 2. Camera: Over-the-shoulder perspective with natural table depth matching reference gameplay
     const aspect = container.clientWidth / container.clientHeight;
-    this.camera = new THREE.PerspectiveCamera(42, aspect, 0.1, 50);
+    this.camera = new THREE.PerspectiveCamera(44, aspect, 0.1, 60);
     this.resetCamera();
 
     // 3. WebGL Renderer
@@ -41,7 +42,7 @@ export class SceneManager {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.14;
 
     container.appendChild(this.renderer.domElement);
 
@@ -60,19 +61,20 @@ export class SceneManager {
     this.opponentPaddle = new PaddleMesh(false);
     this.scene.add(this.opponentPaddle.group);
 
-    // Ball & Shadow & Hit Ripple
+    // Ball & Shadow & Hit Ripple & Speed Trail
     this.ball = new BallMesh();
     this.scene.add(this.ball.mesh);
     this.scene.add(this.ball.shadowMesh);
     this.scene.add(this.ball.hitRipple);
+    this.scene.add(this.ball.trailMesh);
 
     this.setupResize();
   }
 
   public resetCamera(): void {
-    // Elevated three-quarter view matching reference framing & proportions
-    this.camera.position.set(0, 1.70, 3.50);
-    this.camera.lookAt(0, 0.72, -0.22);
+    // Over-the-shoulder arcade perspective with natural court overview and bat clearance
+    this.camera.position.set(0, 1.48, 3.08);
+    this.camera.lookAt(0, 0.75, -0.28);
   }
 
   private setupResize(): void {
@@ -86,9 +88,9 @@ export class SceneManager {
 
       // In mobile portrait (aspect < 1.0), adapt FOV so table retains generous lateral margins
       if (aspect < 1.0) {
-        this.camera.fov = Math.min(68, 42 / Math.pow(aspect, 0.65));
+        this.camera.fov = Math.min(66, 44 / Math.pow(aspect, 0.65));
       } else {
-        this.camera.fov = 42;
+        this.camera.fov = 44;
       }
 
       this.camera.updateProjectionMatrix();
@@ -109,8 +111,8 @@ export class SceneManager {
   }
 
   public updateGameState(ball: BallState, p1Paddle: PaddleState, p2Paddle: PaddleState, dt: number = 0.016): void {
-    // Update Ball
-    this.ball.updatePosition(ball.pos.x, ball.pos.y, ball.pos.z, dt);
+    // Update Ball with 3D physical spin and speed trail
+    this.ball.updatePosition(ball.pos.x, ball.pos.y, ball.pos.z, dt, ball.spin, ball.vel);
     this.ball.setVisible(ball.active);
 
     // Update Player 1 Paddle

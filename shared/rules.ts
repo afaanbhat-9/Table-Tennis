@@ -13,6 +13,7 @@ export class RuleEngine {
   public score: MatchScore;
   public totalPointsPlayed: number = 0;
   public serve: ServeInfo;
+  public initialServer: PlayerSide = 'player1';
 
   constructor() {
     this.score = { player1: 0, player2: 0, winner: null };
@@ -26,7 +27,8 @@ export class RuleEngine {
   public reset(startingServer: PlayerSide = 'player1'): void {
     this.score = { player1: 0, player2: 0, winner: null };
     this.totalPointsPlayed = 0;
-    this.updateService(startingServer);
+    this.initialServer = startingServer;
+    this.updateService(this.initialServer);
   }
 
   public awardPoint(winner: PlayerSide): {
@@ -65,7 +67,8 @@ export class RuleEngine {
     };
   }
 
-  private updateService(startingServer: PlayerSide = 'player1'): void {
+  private updateService(startingServer?: PlayerSide): void {
+    const sServer = startingServer || this.initialServer;
     const p1 = this.score.player1;
     const p2 = this.score.player2;
 
@@ -84,8 +87,8 @@ export class RuleEngine {
     }
 
     const currentServer: PlayerSide = (serverNumber % 2 === 0)
-      ? startingServer
-      : (startingServer === 'player1' ? 'player2' : 'player1');
+      ? sServer
+      : (sServer === 'player1' ? 'player2' : 'player1');
 
     this.serve = {
       server: currentServer,

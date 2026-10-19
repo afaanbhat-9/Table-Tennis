@@ -36,8 +36,8 @@ export class NetworkClient {
   public connect(): void {
     if (this.socket) return;
 
-    // Connect to server (in dev vite runs on 3000 and server on 3001; in prod same origin)
-    const isDev = window.location.port === '3000';
+    // Connect to server (in dev vite runs on 3000/5173 and server on 3001; in prod same origin)
+    const isDev = window.location.port === '3000' || window.location.port === '5173';
     const serverUrl = isDev
       ? `${window.location.protocol}//${window.location.hostname}:3001`
       : window.location.origin;
@@ -97,6 +97,42 @@ export class NetworkClient {
     }, 5000);
   }
 
+  private ensureConnected(): Promise<boolean> {
+    return new Promise((resolve) => {
+      if (!this.socket) {
+        this.connect();
+      }
+      if (!this.socket) {
+        resolve(false);
+        return;
+      }
+      if (this.socket.connected) {
+        resolve(true);
+        return;
+      }
+      const onConnect = () => {
+        cleanup();
+        resolve(true);
+      };
+      const onError = () => {
+        cleanup();
+        resolve(false);
+      };
+      const timer = setTimeout(() => {
+        cleanup();
+        resolve(false);
+      }, 6000);
+      const cleanup = () => {
+        clearTimeout(timer);
+        this.socket?.off('connect', onConnect);
+        this.socket?.off('connect_error', onError);
+      };
+      this.socket.once('connect', onConnect);
+      this.socket.once('connect_error', onError);
+      this.socket.connect();
+    });
+  }
+
   public measurePing(): void {
     if (!this.socket || !this.isConnected) return;
     const start = performance.now();
@@ -105,31 +141,48 @@ export class NetworkClient {
     });
   }
 
-  public createParty(playerName: string, flag: string = '🇹🇷'): Promise<{ success: boolean; code?: string; error?: string }> {
+  public async createParty(playerName: string, flag: string = '🇹🇷'): Promise<{ success: boolean; code?: string; room?: RoomState; error?: string }> {
+    const connected = await this.ensureConnected();
+    if (!connected || !this.socket) {
+      return { success: false, error: 'Could not connect to multiplayer server. Please ensure the server is running.' };
+    }
+
     return new Promise((resolve) => {
-      if (!this.socket) {
-        resolve({ success: false, error: 'Not connected to server' });
-        return;
-      }
-      this.socket.emit('party:create', { playerName, flag }, (res) => {
+      const timer = setTimeout(() => {
+        resolve({ success: false, error: 'Party creation timed out. Please try again.' });
+      }, 8000);
+
+      this.socket!.emit('party:create', { playerName, flag }, (res) => {
+        clearTimeout(timer);
         if (res.success) {
           this.mySide = 'player1';
+          if (res.room) {
+            this.roomState = res.room;
+          }
         }
         resolve(res);
       });
     });
   }
 
-  public joinParty(code: string, playerName: string, flag: string = '🇺🇸'): Promise<{ success: boolean; room?: RoomState; error?: string }> {
+  public async joinParty(code: string, playerName: string, flag: string = '🇺🇸'): Promise<{ success: boolean; room?: RoomState; error?: string }> {
+    const connected = await this.ensureConnected();
+    if (!connected || !this.socket) {
+      return { success: false, error: 'Could not connect to multiplayer server. Please ensure the server is running.' };
+    }
+
     return new Promise((resolve) => {
-      if (!this.socket) {
-        resolve({ success: false, error: 'Not connected to server' });
-        return;
-      }
-      this.socket.emit('party:join', { code, playerName, flag }, (res) => {
+      const timer = setTimeout(() => {
+        resolve({ success: false, error: 'Join party timed out. Please try again.' });
+      }, 8000);
+
+      this.socket!.emit('party:join', { code, playerName, flag }, (res) => {
+        clearTimeout(timer);
         if (res.success) {
           this.mySide = 'player2';
-          if (res.room) this.roomState = res.room;
+          if (res.room) {
+            this.roomState = res.room;
+          }
         }
         resolve(res);
       });

@@ -17,14 +17,12 @@ export interface UIEventHandlers {
 export class UIManager {
   private handlers: UIEventHandlers;
 
-  // DOM Elements
+  // DOM Elements - HUD
   private hudOverlay = document.getElementById('hud-overlay')!;
   private hudScoreP1 = document.getElementById('hud-score-p1')!;
   private hudScoreP2 = document.getElementById('hud-score-p2')!;
   private hudNameP1 = document.getElementById('hud-name-p1')!;
   private hudNameP2 = document.getElementById('hud-name-p2')!;
-  private hudFlagP1 = document.getElementById('hud-flag-p1')!;
-  private hudFlagP2 = document.getElementById('hud-flag-p2')!;
   private hudServeP1 = document.getElementById('hud-serve-p1')!;
   private hudServeP2 = document.getElementById('hud-serve-p2')!;
   private hudModeLabel = document.getElementById('hud-mode-label')!;
@@ -37,13 +35,14 @@ export class UIManager {
   private btnPause = document.getElementById('btn-pause')!;
   private btnMute = document.getElementById('btn-mute')!;
   private muteIcon = document.getElementById('mute-icon')!;
+  private headerMuteIcon = document.getElementById('header-mute-icon');
 
   private hudControlTip = document.getElementById('hud-control-tip');
   private hudSwingBadge = document.getElementById('hud-swing-badge');
   private swingBadgeTimer: any = null;
   private controlTipTimer: any = null;
 
-  // Modals
+  // Modals & Containers
   private modalMainMenu = document.getElementById('modal-main-menu')!;
   private modalCpuDifficulty = document.getElementById('modal-cpu-difficulty')!;
   private modalParty = document.getElementById('modal-party')!;
@@ -51,7 +50,7 @@ export class UIManager {
   private modalPause = document.getElementById('modal-pause')!;
   private modalGameOver = document.getElementById('modal-game-over')!;
 
-  // Party views
+  // Party views & controls
   private tabCreate = document.querySelector('[data-tab="create"]')!;
   private tabJoin = document.querySelector('[data-tab="join"]')!;
   private viewPartyCreate = document.getElementById('view-party-create')!;
@@ -60,6 +59,15 @@ export class UIManager {
   private inputPlayerName = document.getElementById('input-player-name') as HTMLInputElement;
   private inputPartyCode = document.getElementById('input-party-code') as HTMLInputElement;
   private displayPartyCode = document.getElementById('display-party-code')!;
+  private btnCopyPartyCode = document.getElementById('btn-copy-party-code');
+
+  private partyLoadingContainer = document.getElementById('party-loading-container');
+  private partyLoadingText = document.getElementById('party-loading-text');
+  private partyErrorContainer = document.getElementById('party-error-container');
+  private partyErrorText = document.getElementById('party-error-text');
+  private btnPartyRetry = document.getElementById('btn-party-retry');
+  private btnCreatePartyAction = document.getElementById('btn-create-party-action') as HTMLButtonElement;
+  private btnJoinPartyAction = document.getElementById('btn-join-party-action') as HTMLButtonElement;
 
   private lobbySlot1Name = document.getElementById('lobby-slot1-name')!;
   private lobbySlot1Status = document.getElementById('lobby-slot1-status')!;
@@ -74,6 +82,7 @@ export class UIManager {
   private selectedDifficulty: AIDifficulty = 'medium';
   private isPlayerReady: boolean = false;
   private currentRoomCode: string = '';
+  private currentPartyTab: 'create' | 'join' = 'create';
 
   constructor(handlers: UIEventHandlers) {
     this.handlers = handlers;
@@ -81,27 +90,98 @@ export class UIManager {
   }
 
   private bindEvents(): void {
-    // Main Menu Buttons
-    document.getElementById('btn-menu-vs-cpu')!.addEventListener('click', () => {
-      this.modalMainMenu.style.display = 'none';
-      this.modalCpuDifficulty.style.display = 'flex';
+    // --- Full-page Menu Direct Actions ---
+    const btnStartCpuInstant = document.getElementById('btn-start-vs-cpu-instant');
+    if (btnStartCpuInstant) {
+      btnStartCpuInstant.addEventListener('click', () => {
+        this.handlers.onStartVsCPU(this.selectedDifficulty);
+      });
+    }
+
+    const btnOpenCreate = document.getElementById('btn-open-create-party');
+    if (btnOpenCreate) {
+      btnOpenCreate.addEventListener('click', () => {
+        this.resetPartyModal();
+        this.setPartyTab('create');
+        this.modalParty.style.display = 'flex';
+      });
+    }
+
+    const btnOpenJoin = document.getElementById('btn-open-join-party');
+    if (btnOpenJoin) {
+      btnOpenJoin.addEventListener('click', () => {
+        this.resetPartyModal();
+        this.setPartyTab('join');
+        this.modalParty.style.display = 'flex';
+      });
+    }
+
+    // Home Difficulty Pills
+    const homeDiffPills = document.querySelectorAll('#home-diff-pills .diff-pill');
+    homeDiffPills.forEach((pill) => {
+      pill.addEventListener('click', () => {
+        homeDiffPills.forEach((p) => p.classList.remove('active'));
+        pill.classList.add('active');
+        this.selectedDifficulty = (pill.getAttribute('data-diff') as AIDifficulty) || 'medium';
+      });
     });
 
-    document.getElementById('btn-menu-party')!.addEventListener('click', () => {
-      this.modalMainMenu.style.display = 'none';
-      this.modalParty.style.display = 'flex';
-      this.setPartyTab('create');
-    });
+    // Header actions
+    const btnBrandHome = document.getElementById('btn-brand-home');
+    if (btnBrandHome) {
+      btnBrandHome.addEventListener('click', () => {
+        this.hideAllModals();
+        this.showMainMenu();
+      });
+    }
 
-    document.getElementById('btn-menu-how-to-play')!.addEventListener('click', () => {
-      this.modalHowToPlay.style.display = 'flex';
-    });
+    const btnHeaderRules = document.getElementById('btn-header-rules');
+    if (btnHeaderRules) {
+      btnHeaderRules.addEventListener('click', () => {
+        this.modalHowToPlay.style.display = 'flex';
+      });
+    }
 
-    document.getElementById('btn-close-how-to-play')!.addEventListener('click', () => {
-      this.modalHowToPlay.style.display = 'none';
-    });
+    const btnHeaderSound = document.getElementById('btn-header-sound');
+    if (btnHeaderSound) {
+      btnHeaderSound.addEventListener('click', () => {
+        this.handlers.onToggleSound();
+      });
+    }
 
-    // Difficulty selection
+    // Main Menu Buttons (Legacy / Secondary Support)
+    const btnMenuCpu = document.getElementById('btn-menu-vs-cpu');
+    if (btnMenuCpu) {
+      btnMenuCpu.addEventListener('click', () => {
+        this.modalMainMenu.style.display = 'none';
+        this.modalCpuDifficulty.style.display = 'flex';
+      });
+    }
+
+    const btnMenuParty = document.getElementById('btn-menu-party');
+    if (btnMenuParty) {
+      btnMenuParty.addEventListener('click', () => {
+        this.resetPartyModal();
+        this.setPartyTab('create');
+        this.modalParty.style.display = 'flex';
+      });
+    }
+
+    const btnMenuHowTo = document.getElementById('btn-menu-how-to-play');
+    if (btnMenuHowTo) {
+      btnMenuHowTo.addEventListener('click', () => {
+        this.modalHowToPlay.style.display = 'flex';
+      });
+    }
+
+    const btnCloseHowTo = document.getElementById('btn-close-how-to-play');
+    if (btnCloseHowTo) {
+      btnCloseHowTo.addEventListener('click', () => {
+        this.modalHowToPlay.style.display = 'none';
+      });
+    }
+
+    // Difficulty Modal selection
     const diffCards = document.querySelectorAll('.diff-card');
     diffCards.forEach((card) => {
       card.addEventListener('click', () => {
@@ -111,41 +191,75 @@ export class UIManager {
       });
     });
 
-    document.getElementById('btn-start-cpu-game')!.addEventListener('click', () => {
-      this.modalCpuDifficulty.style.display = 'none';
-      this.handlers.onStartVsCPU(this.selectedDifficulty);
-    });
+    const btnStartCpuGame = document.getElementById('btn-start-cpu-game');
+    if (btnStartCpuGame) {
+      btnStartCpuGame.addEventListener('click', () => {
+        this.modalCpuDifficulty.style.display = 'none';
+        this.handlers.onStartVsCPU(this.selectedDifficulty);
+      });
+    }
 
-    document.getElementById('btn-back-to-main-from-diff')!.addEventListener('click', () => {
-      this.modalCpuDifficulty.style.display = 'none';
-      this.modalMainMenu.style.display = 'flex';
-    });
+    const btnBackToMainFromDiff = document.getElementById('btn-back-to-main-from-diff');
+    if (btnBackToMainFromDiff) {
+      btnBackToMainFromDiff.addEventListener('click', () => {
+        this.modalCpuDifficulty.style.display = 'none';
+        this.modalMainMenu.style.display = 'flex';
+      });
+    }
 
     // Party Tabs
     this.tabCreate.addEventListener('click', () => this.setPartyTab('create'));
     this.tabJoin.addEventListener('click', () => this.setPartyTab('join'));
 
-    document.getElementById('btn-create-party-action')!.addEventListener('click', () => {
-      const name = this.inputPlayerName.value.trim() || 'Player 1';
-      this.handlers.onCreateParty(name);
-    });
+    // Party Create Action
+    if (this.btnCreatePartyAction) {
+      this.btnCreatePartyAction.addEventListener('click', () => {
+        const name = this.inputPlayerName.value.trim() || 'Player 1';
+        this.handlers.onCreateParty(name);
+      });
+    }
 
-    document.getElementById('btn-join-party-action')!.addEventListener('click', () => {
-      const name = this.inputPlayerName.value.trim() || 'Player 2';
-      const code = this.inputPartyCode.value.trim().toUpperCase();
-      if (!code) {
-        this.showToast('Please enter a party code');
-        return;
-      }
-      this.handlers.onJoinParty(code, name);
-    });
+    // Party Join Action
+    if (this.btnJoinPartyAction) {
+      this.btnJoinPartyAction.addEventListener('click', () => {
+        const name = this.inputPlayerName.value.trim() || 'Player 2';
+        const code = this.inputPartyCode.value.trim().toUpperCase();
+        if (!code) {
+          this.showToast('Please enter a 6-character party code');
+          return;
+        }
+        this.handlers.onJoinParty(code, name);
+      });
+    }
+
+    // Party Retry Action
+    if (this.btnPartyRetry) {
+      this.btnPartyRetry.addEventListener('click', () => {
+        if (this.currentPartyTab === 'create') {
+          const name = this.inputPlayerName.value.trim() || 'Player 1';
+          this.handlers.onCreateParty(name);
+        } else {
+          const name = this.inputPlayerName.value.trim() || 'Player 2';
+          const code = this.inputPartyCode.value.trim().toUpperCase();
+          if (!code) {
+            this.showToast('Please enter a 6-character party code');
+            return;
+          }
+          this.handlers.onJoinParty(code, name);
+        }
+      });
+    }
 
     // Copy party code
     this.displayPartyCode.addEventListener('click', () => {
-      if (!this.currentRoomCode) return;
-      navigator.clipboard.writeText(this.currentRoomCode);
-      this.showToast(`Party code ${this.currentRoomCode} copied!`);
+      this.copyPartyCode();
     });
+
+    if (this.btnCopyPartyCode) {
+      this.btnCopyPartyCode.addEventListener('click', () => {
+        this.copyPartyCode();
+      });
+    }
 
     // Ready button
     this.btnLobbyReady.addEventListener('click', () => {
@@ -160,19 +274,25 @@ export class UIManager {
     });
 
     // Leave Party
-    document.getElementById('btn-leave-party')!.addEventListener('click', () => {
-      this.handlers.onLeaveParty();
-      this.resetPartyModal();
-    });
+    const btnLeaveParty = document.getElementById('btn-leave-party');
+    if (btnLeaveParty) {
+      btnLeaveParty.addEventListener('click', () => {
+        this.handlers.onLeaveParty();
+        this.resetPartyModal();
+      });
+    }
 
-    document.getElementById('btn-back-to-main-from-party')!.addEventListener('click', () => {
-      this.handlers.onLeaveParty();
-      this.modalParty.style.display = 'none';
-      this.modalMainMenu.style.display = 'flex';
-      this.resetPartyModal();
-    });
+    const btnBackToMainFromParty = document.getElementById('btn-back-to-main-from-party');
+    if (btnBackToMainFromParty) {
+      btnBackToMainFromParty.addEventListener('click', () => {
+        this.handlers.onLeaveParty();
+        this.modalParty.style.display = 'none';
+        this.modalMainMenu.style.display = 'flex';
+        this.resetPartyModal();
+      });
+    }
 
-    // Top-right buttons
+    // Top-right match buttons
     this.btnPause.addEventListener('click', () => {
       this.handlers.onPauseGame();
     });
@@ -182,33 +302,71 @@ export class UIManager {
     });
 
     // Pause Modal Buttons
-    document.getElementById('btn-resume-game')!.addEventListener('click', () => {
-      this.modalPause.style.display = 'none';
-      this.handlers.onResumeGame();
-    });
+    const btnResume = document.getElementById('btn-resume-game');
+    if (btnResume) {
+      btnResume.addEventListener('click', () => {
+        this.modalPause.style.display = 'none';
+        this.handlers.onResumeGame();
+      });
+    }
 
-    document.getElementById('btn-pause-mute')!.addEventListener('click', () => {
-      this.handlers.onToggleSound();
-    });
+    const btnPauseMute = document.getElementById('btn-pause-mute');
+    if (btnPauseMute) {
+      btnPauseMute.addEventListener('click', () => {
+        this.handlers.onToggleSound();
+      });
+    }
 
-    document.getElementById('btn-quit-to-menu')!.addEventListener('click', () => {
-      this.modalPause.style.display = 'none';
-      this.handlers.onReturnToMenu();
-    });
+    const btnQuit = document.getElementById('btn-quit-to-menu');
+    if (btnQuit) {
+      btnQuit.addEventListener('click', () => {
+        this.modalPause.style.display = 'none';
+        this.handlers.onReturnToMenu();
+      });
+    }
 
     // Game Over Buttons
-    document.getElementById('btn-rematch')!.addEventListener('click', () => {
-      this.modalGameOver.style.display = 'none';
-      this.handlers.onRematch();
-    });
+    const btnRematch = document.getElementById('btn-rematch');
+    if (btnRematch) {
+      btnRematch.addEventListener('click', () => {
+        this.modalGameOver.style.display = 'none';
+        this.handlers.onRematch();
+      });
+    }
 
-    document.getElementById('btn-game-over-main-menu')!.addEventListener('click', () => {
-      this.modalGameOver.style.display = 'none';
-      this.handlers.onReturnToMenu();
-    });
+    const btnGameOverMain = document.getElementById('btn-game-over-main-menu');
+    if (btnGameOverMain) {
+      btnGameOverMain.addEventListener('click', () => {
+        this.modalGameOver.style.display = 'none';
+        this.handlers.onReturnToMenu();
+      });
+    }
+  }
+
+  public copyPartyCode(): void {
+    if (!this.currentRoomCode) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(this.currentRoomCode).then(() => {
+        this.showToast(`Party code ${this.currentRoomCode} copied!`);
+      }).catch(() => {
+        this.showToast(`Code: ${this.currentRoomCode}`);
+      });
+    } else {
+      this.showToast(`Party code: ${this.currentRoomCode}`);
+    }
   }
 
   public setPartyTab(tab: 'create' | 'join'): void {
+    this.currentPartyTab = tab;
+    this.resetPartyLoading();
+
+    const tabs = document.getElementById('party-tabs');
+    if (tabs) tabs.style.display = 'flex';
+    const nicknameGroup = document.getElementById('party-nickname-group');
+    if (nicknameGroup) nicknameGroup.style.display = 'flex';
+    const btnBack = document.getElementById('btn-back-to-main-from-party');
+    if (btnBack) btnBack.style.display = 'flex';
+
     if (tab === 'create') {
       this.tabCreate.classList.add('active');
       this.tabJoin.classList.remove('active');
@@ -224,9 +382,57 @@ export class UIManager {
     }
   }
 
+  public showPartyLoading(message: string): void {
+    if (this.partyLoadingContainer) {
+      this.partyLoadingContainer.style.display = 'flex';
+    }
+    if (this.partyLoadingText) {
+      this.partyLoadingText.innerText = message;
+    }
+    if (this.partyErrorContainer) {
+      this.partyErrorContainer.style.display = 'none';
+    }
+    if (this.btnCreatePartyAction) this.btnCreatePartyAction.disabled = true;
+    if (this.btnJoinPartyAction) this.btnJoinPartyAction.disabled = true;
+  }
+
+  public showPartyError(errorMessage: string): void {
+    if (this.partyLoadingContainer) {
+      this.partyLoadingContainer.style.display = 'none';
+    }
+    if (this.btnCreatePartyAction) this.btnCreatePartyAction.disabled = false;
+    if (this.btnJoinPartyAction) this.btnJoinPartyAction.disabled = false;
+
+    if (this.partyErrorContainer) {
+      this.partyErrorContainer.style.display = 'flex';
+    }
+    if (this.partyErrorText) {
+      this.partyErrorText.innerText = errorMessage;
+    }
+  }
+
+  public resetPartyLoading(): void {
+    if (this.partyLoadingContainer) {
+      this.partyLoadingContainer.style.display = 'none';
+    }
+    if (this.partyErrorContainer) {
+      this.partyErrorContainer.style.display = 'none';
+    }
+    if (this.btnCreatePartyAction) this.btnCreatePartyAction.disabled = false;
+    if (this.btnJoinPartyAction) this.btnJoinPartyAction.disabled = false;
+  }
+
   public showPartyLobby(room: RoomState, isHost: boolean): void {
     this.currentRoomCode = room.code;
     this.displayPartyCode.innerText = room.code;
+    this.resetPartyLoading();
+
+    const tabs = document.getElementById('party-tabs');
+    if (tabs) tabs.style.display = 'none';
+    const nicknameGroup = document.getElementById('party-nickname-group');
+    if (nicknameGroup) nicknameGroup.style.display = 'none';
+    const btnBack = document.getElementById('btn-back-to-main-from-party');
+    if (btnBack) btnBack.style.display = 'none';
 
     this.viewPartyCreate.style.display = 'none';
     this.viewPartyJoin.style.display = 'none';
@@ -269,11 +475,13 @@ export class UIManager {
     this.isPlayerReady = false;
     this.btnLobbyReady.innerText = 'Ready Up';
     this.currentRoomCode = '';
+    this.resetPartyLoading();
     this.setPartyTab('create');
   }
 
   public showHUD(mode: 'singleplayer' | 'multiplayer', p1Name: string = 'YOU', p2Name: string = 'CPU'): void {
     this.hideAllModals();
+    document.body.classList.add('in-game');
     this.hudOverlay.style.display = 'block';
     this.hudNameP1.innerText = p1Name;
     this.hudNameP2.innerText = p2Name;
@@ -282,6 +490,7 @@ export class UIManager {
   }
 
   public hideHUD(): void {
+    document.body.classList.remove('in-game');
     this.hudOverlay.style.display = 'none';
   }
 
@@ -302,31 +511,28 @@ export class UIManager {
     this.hudPingLabel.innerText = `Ping: ${pingMs}ms`;
   }
 
-  public showAnnouncement(text: string, subText: string = '', durationMs: number = 1500): void {
-    this.bannerText.innerText = text;
-    this.bannerSub.innerText = subText;
-    this.banner.classList.add('visible');
-
-    if (durationMs > 0) {
-      setTimeout(() => {
-        this.banner.classList.remove('visible');
-      }, durationMs);
-    }
+  public showAnnouncement(_text: string, _subText: string = '', _durationMs: number = 1500): void {
+    // In-game announcements suppressed per user request for clean, uncluttered gameplay
   }
 
   public hideAnnouncement(): void {
-    this.banner.classList.remove('visible');
+    if (this.banner) {
+      this.banner.classList.remove('visible');
+    }
   }
 
   public showPauseModal(): void {
+    document.body.classList.remove('in-game');
     this.modalPause.style.display = 'flex';
   }
 
   public hidePauseModal(): void {
+    document.body.classList.add('in-game');
     this.modalPause.style.display = 'none';
   }
 
   public showGameOverModal(winner: PlayerSide, score: MatchScore, isPlayer1Winner: boolean): void {
+    document.body.classList.remove('in-game');
     const headline = document.getElementById('winner-headline')!;
     const subtitle = document.getElementById('winner-subtitle')!;
     const fScoreP1 = document.getElementById('final-score-p1')!;
@@ -337,11 +543,11 @@ export class UIManager {
 
     if (isPlayer1Winner) {
       headline.innerText = 'VICTORY!';
-      headline.style.color = '#ffdf4a';
+      headline.style.color = '#34332F';
       subtitle.innerText = 'You won the match!';
     } else {
       headline.innerText = 'MATCH FINISHED';
-      headline.style.color = '#e2e8f0';
+      headline.style.color = '#77736C';
       subtitle.innerText = `${winner === 'player1' ? 'Player 1' : 'Player 2'} won the match.`;
     }
 
@@ -349,9 +555,19 @@ export class UIManager {
   }
 
   public showMainMenu(): void {
+    document.body.classList.remove('in-game');
     this.hideAllModals();
     this.hideHUD();
     this.modalMainMenu.style.display = 'flex';
+
+    // Re-trigger card entrance animations smoothly
+    const cards = this.modalMainMenu.querySelectorAll('.menu-card');
+    cards.forEach((card) => {
+      const el = card as HTMLElement;
+      el.style.animation = 'none';
+      void el.offsetHeight;
+      el.style.animation = '';
+    });
   }
 
   public hideAllModals(): void {
@@ -365,31 +581,21 @@ export class UIManager {
 
   public updateMuteState(isMuted: boolean): void {
     this.muteIcon.innerText = isMuted ? '🔇' : '🔊';
+    if (this.headerMuteIcon) {
+      this.headerMuteIcon.innerText = isMuted ? '🔇 Sound: MUTED' : '🔊 Sound: ON';
+    }
     const pauseMute = document.getElementById('pause-mute-text');
     if (pauseMute) {
       pauseMute.innerText = isMuted ? '🔇 Sound: MUTED' : '🔊 Sound: ON';
     }
   }
 
-  public showControlHint(durationMs: number = 4000): void {
-    if (!this.hudControlTip) return;
-    this.hudControlTip.style.opacity = '1';
-    if (this.controlTipTimer) clearTimeout(this.controlTipTimer);
-    this.controlTipTimer = setTimeout(() => {
-      if (this.hudControlTip) this.hudControlTip.style.opacity = '0';
-    }, durationMs);
+  public showControlHint(_durationMs: number = 4000): void {
+    // In-game control hints suppressed per user request
   }
 
-  public showSwingIndicator(strength: number): void {
-    if (!this.hudSwingBadge) return;
-    const powerText = strength > 0.8 ? 'SMASH DRIVE!' : (strength > 0.6 ? 'STRONG SWING!' : 'SWING STRIKE!');
-    this.hudSwingBadge.innerText = powerText;
-    this.hudSwingBadge.classList.add('active');
-
-    if (this.swingBadgeTimer) clearTimeout(this.swingBadgeTimer);
-    this.swingBadgeTimer = setTimeout(() => {
-      if (this.hudSwingBadge) this.hudSwingBadge.classList.remove('active');
-    }, 450);
+  public showSwingIndicator(_strength: number): void {
+    // In-game swing text indicators suppressed per user request
   }
 
   public showToast(msg: string): void {

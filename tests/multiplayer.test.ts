@@ -111,10 +111,106 @@ async function runMultiplayerTests() {
   assert.strictEqual(countdownStarted, true, 'Countdown must start after both ready');
   console.log('  -> Match countdown triggered and synchronized successfully!');
 
-  // Clean up
+  // Clean up previous clients
   clientHost.disconnect();
   clientGuest.disconnect();
   clientThird.disconnect();
+
+  // Test 6: Party Re-creation on same socket (No premature party:left emitted)
+  console.log('\nTest 6: Party Re-creation on same socket (Bug prevention test)...');
+  const clientHost2 = ClientIO(serverUrl);
+  await new Promise<void>((resolve) => clientHost2.on('connect', resolve));
+
+  let prematurePartyLeftReceived = false;
+  clientHost2.on('party:left', () => {
+    prematurePartyLeftReceived = true;
+  });
+
+  // Host creates room 1
+  let code1 = '';
+  await new Promise<void>((resolve) => {
+    clientHost2.emit('party:create', { playerName: 'Host2' }, (res) => {
+      assert.strictEqual(res.success, true);
+      assert.ok(res.room, 'Must return initial room state');
+      code1 = res.code!;
+      resolve();
+    });
+  });
+
+  // Host creates room 2 on same socket (e.g. repeated click or new room)
+  let code2 = '';
+  await new Promise<void>((resolve) => {
+    clientHost2.emit('party:create', { playerName: 'Host2' }, (res) => {
+      assert.strictEqual(res.success, true);
+      assert.ok(res.room, 'Must return room state for new room');
+      code2 = res.code!;
+      resolve();
+    });
+  });
+
+  assert.strictEqual(prematurePartyLeftReceived, false, 'Creating party should NEVER emit party:left to creator socket!');
+  assert.notStrictEqual(code1, code2, 'New code must be generated');
+  console.log('  -> Party re-creation passed with no spurious party:left!');
+
+  // Test 7: State synchronization via party:updated
+  console.log('\nTest 7: Testing party:updated broadcast to both host and guest...');
+  const clientGuest2 = ClientIO(serverUrl);
+  await new Promise<void>((resolve) => clientGuest2.on('connect', resolve));
+
+  let hostUpdated = false;
+  let guestUpdated = false;
+
+  clientHost2.on('party:updated', (room) => {
+    if (room.players.player2?.name === 'Guest2') {
+      hostUpdated = true;
+    }
+  });
+
+  clientGuest2.on('party:updated', (room) => {
+    if (room.players.player2?.name === 'Guest2') {
+      guestUpdated = true;
+    }
+  });
+
+  await new Promise<void>((resolve) => {
+    clientGuest2.emit('party:join', { code: code2, playerName: 'Guest2' }, (res) => {
+      assert.strictEqual(res.success, true);
+      resolve();
+    });
+  });
+
+  // Give short window for socket broadcast
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  assert.strictEqual(hostUpdated, true, 'Host must receive party:updated with guest info');
+  assert.strictEqual(guestUpdated, true, 'Guest must receive party:updated with both players');
+  console.log('  -> party:updated synchronization verified for both clients!');
+
+  // Test 8: Leaving party properly emits player:disconnected and updates lobby
+  console.log('\nTest 8: Verifying player:disconnected and lobby update when opponent leaves...');
+  let hostNotifiedOfGuestLeave = false;
+  let hostLobbyResetToWaiting = false;
+
+  clientHost2.on('player:disconnected', (data) => {
+    if (data.side === 'player2') {
+      hostNotifiedOfGuestLeave = true;
+    }
+  });
+
+  clientHost2.on('party:updated', (room) => {
+    if (!room.players.player2) {
+      hostLobbyResetToWaiting = true;
+    }
+  });
+
+  clientGuest2.emit('party:leave');
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.strictEqual(hostNotifiedOfGuestLeave, true, 'Host must be notified when guest leaves party');
+  assert.strictEqual(hostLobbyResetToWaiting, true, 'Host lobby must update to show slot 2 is empty/waiting');
+  console.log('  -> Opponent leave notification and lobby slot reset verified successfully!');
+
+  // Final cleanup
+  clientHost2.disconnect();
+  clientGuest2.disconnect();
   server.close();
 
   console.log('\n=== ALL MULTIPLAYER TESTS PASSED SUCCESSFULLY! ===');
