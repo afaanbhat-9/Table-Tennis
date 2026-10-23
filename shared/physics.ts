@@ -660,7 +660,7 @@ export class PhysicsSimulation {
     const cy = Math.cos(rot.y);
     const sy = Math.sin(rot.y);
 
-    const nx = baseZ * sy * cx;
+    const nx = -sy * cx;
     const ny = -baseZ * sx;
     const nz = baseZ * cy * cx;
 
@@ -842,40 +842,43 @@ export class PhysicsSimulation {
 
       // Swipe Spin & Aiming:
       // Use paddle's movement vector during contact to angle ball left/right across table
-      const swipeAimAngle = paddle.vel.x * 0.35 + (dx / PADDLE_RADIUS) * 0.25;
-      const courtCentering = -b.pos.x * 0.60;
+      const swipeAimAngle = paddle.vel.x * 0.22 + (dx / PADDLE_RADIUS) * 0.22;
+      const courtCentering = -b.pos.x * 0.50;
       let newVx = swipeAimAngle + courtCentering;
-      newVx = Math.max(-1.8, Math.min(1.8, newVx));
+      newVx = Math.max(-1.45, Math.min(1.45, newVx));
 
-      // Dynamic Net Clearance & Arc Assist:
-      // Automatically clamp/adjust vertical bounce velocity (v.y) on valid hits so shots
-      // naturally arc over the net and land on the opponent's side unless aimed sharply away.
+      // Dynamic Net Clearance & Return Arc:
+      // Computes realistic return trajectory based on bat normal (tilt), stroke velocity, and landing target
       const distToNet = Math.abs(b.pos.z);
       const avgForwardSpeed = forwardSpeed * 0.90; // account for aerodynamic drag deceleration
-      const timeToNet = Math.max(0.12, Math.min(0.48, distToNet / (avgForwardSpeed || 1)));
+      const timeToNet = Math.max(0.10, Math.min(0.50, distToNet / (avgForwardSpeed || 1)));
       const effectiveG = GRAVITY + 2.0; // accounts for air drag and topspin downward Magnus force
-      const targetNetHeight = NET_Y_TOP + 0.045; // 4.5cm clearance above net tape
+      const targetNetHeight = NET_Y_TOP + 0.038; // 3.8cm clearance above net tape
       const minVyToClear = (targetNetHeight - b.pos.y + 0.5 * effectiveG * timeToNet * timeToNet) / timeToNet;
 
-      // Opponent landing calculation (aimed to land between Z = -0.6 and Z = -1.1)
-      const targetLandingZ = isP1 ? -0.80 : 0.80;
+      // Opponent landing calculation (aimed to land between Z = 0.60 and 1.15 in opponent court)
+      const targetLandingZ = isP1 ? -0.85 : 0.85;
       const distToLanding = Math.abs(b.pos.z - targetLandingZ);
-      const timeToLand = Math.max(0.25, Math.min(0.75, distToLanding / (avgForwardSpeed || 1)));
+      const timeToLand = Math.max(0.22, Math.min(0.70, distToLanding / (avgForwardSpeed || 1)));
       const landingSurfaceY = TABLE_HEIGHT + BALL_RADIUS;
       const targetVyForLanding = (landingSurfaceY - b.pos.y + 0.5 * effectiveG * timeToLand * timeToLand) / timeToLand;
 
-      let newVy = Math.max(0, paddle.vel.y) + normal.y * reboundNormalSpeed + reboundTangY;
+      // Launch velocity combines landing arc with bat tilt and vertical stroke:
+      // - Upward bat tilt (normal.y > 0) creates higher arc and deeper bounce
+      // - Downward bat tilt (normal.y < 0) creates flatter, lower drive
+      // - Upward brush (paddle.vel.y > 0) adds topspin lift
+      const tiltInfluence = normal.y * 3.2;
+      const strokeInfluence = Math.max(-0.4, Math.min(1.2, paddle.vel.y * 0.30));
+      let newVy = targetVyForLanding + tiltInfluence + strokeInfluence;
 
-      const isAimedSharplyAway = Math.abs(paddle.vel.x) > 4.5 || Math.abs(dx) > PADDLE_RADIUS * 1.5;
-      if (!isAimedSharplyAway) {
-        if (isSmash || forwardSpeed >= 7.5) {
-          // Flat/downward smash trajectory: clears net and lands reliably on opponent table half
-          newVy = Math.max(minVyToClear, Math.min(1.25, targetVyForLanding));
-        } else {
-          // Standard rally arc assist: guarantees net clearance and arcs into opponent court
-          const clampedMinVy = b.pos.y > (NET_Y_TOP + 0.15) ? Math.max(0.60, minVyToClear) : Math.max(1.65, minVyToClear);
-          newVy = Math.max(clampedMinVy, Math.min(2.45, Math.max(clampedMinVy, targetVyForLanding)));
-        }
+      // Net clearance guarantee: ball clears net cleanly onto opponent side for valid hits
+      if (isSmash || forwardSpeed >= 7.2) {
+        // Fast drive / smash: flat trajectory skimming above net tape into opponent court
+        newVy = Math.max(minVyToClear, Math.min(1.45, newVy));
+      } else {
+        // Rally returns: guarantee net clearance and pleasant readable arc
+        const clampedMinVy = b.pos.y > (NET_Y_TOP + 0.12) ? Math.max(0.70, minVyToClear) : Math.max(1.60, minVyToClear);
+        newVy = Math.max(clampedMinVy, Math.min(2.55, Math.max(clampedMinVy, newVy)));
       }
 
       // Swipe Spin:

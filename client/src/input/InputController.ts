@@ -6,6 +6,7 @@ import {
   PADDLE_MAX_Y,
   PLAYER_PADDLE_Z,
   TABLE_HEIGHT,
+  NET_Y_TOP,
   getMinPaddleY
 } from '../../../shared/constants.js';
 import { PaddleState, PlayerInput, Vector3D } from '../../../shared/types.js';
@@ -78,11 +79,17 @@ export class InputController {
     };
 
     const onPointerDown = (e: PointerEvent) => {
+      try {
+        (e.target as HTMLElement)?.setPointerCapture?.(e.pointerId);
+      } catch (_) {}
       this.isPointerActive = true;
       this.handlePointerDown(e.clientX, e.clientY);
     };
 
     const onPointerUp = (e: PointerEvent) => {
+      try {
+        (e.target as HTMLElement)?.releasePointerCapture?.(e.pointerId);
+      } catch (_) {}
       this.handlePointerUp(e.clientX, e.clientY);
       this.isPointerActive = false;
     };
@@ -92,7 +99,7 @@ export class InputController {
       this.pointerHistory = [];
     };
 
-    this.domElement.addEventListener('pointermove', onPointerMove, { passive: true });
+    window.addEventListener('pointermove', onPointerMove, { passive: true });
     this.domElement.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerCancel);
@@ -304,9 +311,18 @@ export class InputController {
     };
 
     // 5. Paddle 3D Orientation (tilt)
-    // Smooth natural ergonomic tilt: when reaching forward towards table, blade tilts forward into ready topspin stance
-    const tableCloseness = Math.max(0, 1.0 - (cur.z - 1.37) / 0.50);
-    const targetTiltX = -0.14 - tableCloseness * 0.16;
+    // Ergonomic authentic orientation:
+    // - Low paddle near table opens slightly (+X tilt) to naturally lift balls over net
+    // - High paddle above net closes slightly (-X tilt) for topspin drive
+    // - Forward swing gesture applies topspin/flat drive tilt
+    const heightFromNet = cur.y - NET_Y_TOP;
+    let targetTiltX = -Math.max(-0.06, Math.min(0.12, heightFromNet * 0.35));
+
+    if (this.swingState.phase === 'forward') {
+      const swingY = this.swingState.direction.y;
+      targetTiltX -= swingY * 0.10 * this.swingState.strength;
+    }
+
     const targetTiltY = (cur.x / 1.0) * 0.22;
     const targetTiltZ = -0.20 - (cur.x / 1.0) * 0.30;
 

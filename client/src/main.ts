@@ -92,6 +92,7 @@ class GameApp {
       onReturnToMenu: () => this.returnToMainMenu()
     });
 
+    (window as any).__gameApp = this;
     this.setupNetworkCallbacks();
     this.startAnimationLoop();
 
