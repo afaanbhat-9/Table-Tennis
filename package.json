@@ -17,7 +17,8 @@
     "test:rally": "tsx tests/rally.test.ts",
     "test:physics": "tsx tests/physics_enhancements.test.ts",
     "test:ittf": "tsx tests/ittf_rules.test.ts",
-    "test": "tsx tests/game.test.ts && tsx tests/swing.test.ts && tsx tests/rally.test.ts && tsx tests/physics_enhancements.test.ts && tsx tests/ittf_rules.test.ts && tsx tests/multiplayer.test.ts",
+    "test:curving": "tsx tests/curving_and_difficulties.test.ts",
+    "test": "tsx tests/game.test.ts && tsx tests/swing.test.ts && tsx tests/rally.test.ts && tsx tests/physics_enhancements.test.ts && tsx tests/ittf_rules.test.ts && tsx tests/multiplayer.test.ts && tsx tests/curving_and_difficulties.test.ts",
     "start": "node dist/server/server/src/index.js"
   },
   "dependencies": {

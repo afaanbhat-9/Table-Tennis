@@ -130,11 +130,12 @@ class GameApp {
     };
 
     this.netClient.onGameCountdown = (count: number) => {
-      this.soundManager.playButtonClick();
       if (count > 0) {
-        this.uiManager.showAnnouncement(count.toString(), '', 900);
+        this.uiManager.showCountdown(count);
+        this.soundManager.playCountdown(count);
       } else {
-        this.uiManager.showAnnouncement('PLAY!', '', 800);
+        this.uiManager.showCountdown('PLAY!', 'RALLY START!');
+        this.soundManager.playCountdown('PLAY!');
       }
     };
 
@@ -238,9 +239,10 @@ class GameApp {
     this.spCountdown = 3;
     const isPlayerServer = this.spRules.serve.server === 'player1';
     const serveX = isPlayerServer ? 0.0 : this.spAI.selectServePosition();
-    this.spPhysics.prepareServe(this.spRules.serve.server, serveX);
-    this.uiManager.showAnnouncement('3', 'Ready...', 900);
-    this.soundManager.playButtonClick();
+    const serveTargetX = isPlayerServer ? undefined : this.spAI.chosenServeTargetX;
+    this.spPhysics.prepareServe(this.spRules.serve.server, serveX, serveTargetX);
+    this.uiManager.showCountdown(3, 'READY...');
+    this.soundManager.playCountdown(3);
 
     this.countdownInterval = setInterval(() => {
       if (this.currentMode !== 'singleplayer') {
@@ -249,11 +251,11 @@ class GameApp {
       }
       this.spCountdown--;
       if (this.spCountdown > 0) {
-        this.uiManager.showAnnouncement(this.spCountdown.toString(), '', 900);
-        this.soundManager.playButtonClick();
+        this.uiManager.showCountdown(this.spCountdown);
+        this.soundManager.playCountdown(this.spCountdown);
       } else if (this.spCountdown === 0) {
-        this.uiManager.showAnnouncement('SERVE!', '', 800);
-        this.soundManager.playPaddleHit(0.8);
+        this.uiManager.showCountdown('SERVE!', 'RALLY START!');
+        this.soundManager.playCountdown('SERVE!');
         if (this.countdownInterval) clearInterval(this.countdownInterval);
         this.spBeginServe();
       }
@@ -265,16 +267,17 @@ class GameApp {
     const isPlayerServer = this.spRules.serve.server === 'player1';
     this.spPhaseTimer = isPlayerServer ? 4.0 : 2.5;
     const serveX = isPlayerServer ? this.inputController.targetPos.x : this.spAI.selectServePosition();
-    this.spPhysics.prepareServe(this.spRules.serve.server, serveX);
+    const serveTargetX = isPlayerServer ? undefined : this.spAI.chosenServeTargetX;
+    this.spPhysics.prepareServe(this.spRules.serve.server, serveX, serveTargetX);
   }
 
   private updateSinglePlayer(dt: number): void {
     if (this.isPaused) return;
 
-    // 1. Update player paddle from input
+    // 1. Update player paddle from input (synchronized with visible paddle)
     this.inputController.activeBall = this.spPhysics.ball;
     const input = this.inputController.update(dt);
-    this.spPhysics.paddle1.pos = { x: input.targetPos.x, y: input.targetPos.y, z: input.targetPos.z };
+    this.spPhysics.paddle1.pos = { ...this.inputController.currentPaddle.pos };
     this.spPhysics.paddle1.vel = { ...this.inputController.currentPaddle.vel };
     this.spPhysics.paddle1.rot = { ...this.inputController.currentPaddle.rot };
     this.spPhysics.paddle1.isSwinging = this.inputController.currentPaddle.isSwinging;
@@ -506,11 +509,22 @@ class GameApp {
 
       if (this.currentMode === 'singleplayer') {
         this.physicsAccumulator += rawDt;
+        // Clamp accumulator to avoid spiral of death on tab switch or pause
+        if (this.physicsAccumulator > 0.1) this.physicsAccumulator = 0.1;
+
         // Fixed 60Hz physics integration loop
         while (this.physicsAccumulator >= PHYSICS_DT) {
           this.updateSinglePlayer(PHYSICS_DT);
           this.physicsAccumulator -= PHYSICS_DT;
         }
+
+        // Render at native screen refresh rate (60Hz, 120Hz, 144Hz+) with zero stuttering or micro-freezes
+        this.spPhysics.paddle1.pos.x = this.inputController.currentPaddle.pos.x;
+        this.spPhysics.paddle1.pos.y = this.inputController.currentPaddle.pos.y;
+        this.spPhysics.paddle1.pos.z = this.inputController.currentPaddle.pos.z;
+        this.spPhysics.paddle1.rot.x = this.inputController.currentPaddle.rot.x;
+        this.spPhysics.paddle1.rot.y = this.inputController.currentPaddle.rot.y;
+        this.spPhysics.paddle1.rot.z = this.inputController.currentPaddle.rot.z;
 
         this.sceneManager.updateGameState(
           this.spPhysics.ball,

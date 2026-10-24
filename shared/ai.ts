@@ -10,7 +10,10 @@ import {
   PADDLE_MIN_Y,
   PADDLE_MAX_Y,
   getMinPaddleY,
-  MAGNUS_COEFFICIENT
+  MAGNUS_COEFFICIENT,
+  SPIN_AIR_DECAY,
+  SPIN_BOUNCE_DECAY,
+  SPIN_BOUNCE_FRICTION
 } from './constants.js';
 import { AIDifficulty, BallState, PaddleState, Vector3D } from './types.js';
 
@@ -26,31 +29,31 @@ interface AIDifficultyConfig {
 
 const DIFFICULTY_CONFIGS: Record<AIDifficulty, AIDifficultyConfig> = {
   easy: {
-    reactionDelayMs: 280,       // Generous human-like reaction delay for Casual (relaxing pace)
-    predictionError: 0.12,      // Natural inaccuracies, can miss wide or fast angled shots
-    maxSpeed: 2.2,              // Relaxed movement speed (won't sprint to impossible corners)
-    lerpRate: 7.0,              // Smooth, gentle movement interpolation
-    reachLimitX: 0.60,          // Cannot reach extreme table edge shots
-    swingAggression: 0.15,      // Gentle returns, won't smash aggressively
-    returnPlacementBias: 0.10   // Hits returns safely near center line, easy to rally
+    reactionDelayMs: 290,       // Relaxed, forgiving beginner reaction delay
+    predictionError: 0.10,      // Natural variance; can miss or mishit fast/wide shots
+    maxSpeed: 2.1,              // Relaxed movement pace; player can win points with corner/fast shots
+    lerpRate: 6.5,              // Smooth, forgiving movement
+    reachLimitX: 0.65,          // Comfortable reach; wide angled shots become clear winners for the player
+    swingAggression: 0.05,      // Gentle, friendly returns with zero aggressive smashes
+    returnPlacementBias: 0.08   // Places returns safely towards center court, easy to rally
   },
   medium: {
-    reactionDelayMs: 150,
-    predictionError: 0.03,
-    maxSpeed: 4.8,
-    lerpRate: 13.0,
-    reachLimitX: 0.85,
-    swingAggression: 0.65,
-    returnPlacementBias: 0.55
+    reactionDelayMs: 215,       // Realistic intermediate human reaction delay
+    predictionError: 0.065,     // Moderate variance; beaten by well-placed smashes and fast rallies
+    maxSpeed: 3.1,              // Balanced pace; competitive yet definitely beatable
+    lerpRate: 8.5,              // Steady tracking
+    reachLimitX: 0.74,          // Accessible reach; sharp angles can pass the bot
+    swingAggression: 0.22,      // Moderate, controlled returns
+    returnPlacementBias: 0.28   // Good variety without overwhelming the player
   },
   hard: {
-    reactionDelayMs: 120,
-    predictionError: 0.005,
-    maxSpeed: 7.2,
-    lerpRate: 18.0,
-    reachLimitX: 0.98,
-    swingAggression: 0.95,
-    returnPlacementBias: 0.88
+    reactionDelayMs: 165,       // Fast tournament-level reaction, but human and beatable
+    predictionError: 0.035,     // Minor variance; sharp drives and smashes can win points
+    maxSpeed: 4.1,              // Fast and alert, but won't teleport like a robotic wall
+    lerpRate: 11.5,             // Sharp tracking
+    reachLimitX: 0.82,          // Strong coverage, but deep corner drives can score
+    swingAggression: 0.48,      // Strategic attacks rather than endless overwhelming smashes
+    returnPlacementBias: 0.45   // Varied placement creating enjoyable, rewarding rallies
   }
 };
 
@@ -89,11 +92,11 @@ export class TableTennisAI {
    */
   public selectServePosition(): number {
     if (this.difficulty === 'easy') {
-      // Casual bot: serves from comfortable near-center positions with gentle, centered targets
-      const stances = [-0.15, 0.15, 0.0];
+      // Casual bot: serves from varied comfortable stances across table with readable targets (left, right, center)
+      const stances = [-0.30, 0.30, -0.16, 0.16, 0.0];
       this.chosenServeX = stances[this.serveCount % stances.length];
       this.serveCount++;
-      const targets = [-0.08, 0.08, 0.0];
+      const targets = [-0.32, 0.32, -0.18, 0.18, 0.0];
       this.chosenServeTargetX = targets[Math.floor(Math.random() * targets.length)];
       return this.chosenServeX;
     }
@@ -174,8 +177,6 @@ export class TableTennisAI {
       // Forward swing surge when ball is in striking window
       if (ball.pos.z < OPPONENT_PADDLE_Z + 0.38 && ball.pos.z > OPPONENT_PADDLE_Z - 0.05) {
         this.currentTarget.z = OPPONENT_PADDLE_Z + 0.14 * this.config.swingAggression;
-        // Lateral brush towards strategic aim target kept controlled
-        this.currentTarget.x += (this.strategicAimX - this.currentTarget.x) * 0.08;
       }
     } else if (ball.isServe && ball.lastHitter === 'player2') {
       if (ball.serveState === 'tossed') {
@@ -282,6 +283,8 @@ export class TableTennisAI {
     let simVx = ball.vel.x;
     let simVy = ball.vel.y;
     let simVz = ball.vel.z;
+    let simSpinX = ball.spin ? ball.spin.x : 0;
+    let simSpinY = ball.spin ? ball.spin.y : 0;
 
     const simDt = 0.015;
     const maxSteps = Math.min(160, Math.ceil(tEstimate / simDt) + 10);
@@ -295,8 +298,18 @@ export class TableTennisAI {
       const spd = Math.hypot(simVx, simVy, simVz);
       const drag = AIR_DRAG * spd;
 
-      simVx -= simVx * drag * simDt;
-      simVy += (-GRAVITY - simVy * drag) * simDt;
+      // 3D Aerodynamic Magnus curve force
+      let fMagnusX = 0;
+      let fMagnusY = 0;
+      if (simSpinY !== 0 || simSpinX !== 0) {
+        fMagnusX = -MAGNUS_COEFFICIENT * (simSpinY * simVz);
+        fMagnusY = -MAGNUS_COEFFICIENT * simSpinX * Math.abs(simVz);
+        simSpinX *= Math.max(0, 1.0 - SPIN_AIR_DECAY * simDt);
+        simSpinY *= Math.max(0, 1.0 - SPIN_AIR_DECAY * simDt);
+      }
+
+      simVx += (fMagnusX - simVx * drag) * simDt;
+      simVy += (fMagnusY - GRAVITY - simVy * drag) * simDt;
       simVz -= simVz * drag * simDt;
 
       simX += simVx * simDt;
@@ -307,6 +320,10 @@ export class TableTennisAI {
       if (simY <= TABLE_HEIGHT + BALL_RADIUS) {
         simY = TABLE_HEIGHT + BALL_RADIUS;
         simVy = Math.abs(simVy) * TABLE_RESTITUTION;
+        const flightDirZ = simVz > 0 ? 1 : -1;
+        simVx = simVx * 0.95 - flightDirZ * simSpinY * SPIN_BOUNCE_FRICTION;
+        simSpinX *= SPIN_BOUNCE_DECAY;
+        simSpinY *= SPIN_BOUNCE_DECAY;
       }
     }
 

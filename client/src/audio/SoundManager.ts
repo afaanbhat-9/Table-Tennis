@@ -51,137 +51,69 @@ export class SoundManager {
   }
 
   /**
-   * Authentic dual-stage table tennis paddle impact sound.
-   * Combines wooden blade low-end punch with rubber friction pop.
+   * Subtle, soft, and gentle paddle ball impact sound ("very little and nice").
+   * Quiet, satisfying, and pleasant wooden/rubber tap without harsh or loud boom.
    */
   public playPaddleHit(intensity: number = 0.8): void {
     if (!this.ctx || !this.masterGain || this.isMuted) return;
     const now = this.ctx.currentTime;
-    const clampedIntensity = Math.min(1.4, Math.max(0.4, intensity));
+    const clampedIntensity = Math.min(1.2, Math.max(0.4, intensity));
 
-    // 1. Blade body punch: 210 Hz down to 90 Hz
-    const osc = this.ctx.createOscillator();
-    const gain = this.ctx.createGain();
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(210 * (0.9 + clampedIntensity * 0.2), now);
-    osc.frequency.exponentialRampToValueAtTime(80, now + 0.045);
-
-    gain.gain.setValueAtTime(0.65 * clampedIntensity, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
-
-    osc.connect(gain);
-    gain.connect(this.masterGain);
-    osc.start(now);
-    osc.stop(now + 0.055);
-
-    // 2. Rubber tackiness & pop: bandpassed noise centered at ~1050 Hz
-    this.playBandpassNoise(0.03, 0.45 * clampedIntensity, 1050, 2.5);
-  }
-
-  /**
-   * Authentic table bounce "TOK / PING" sound.
-   * Combines sharp celluloid/ABS impact transient with hollow wooden board resonance.
-   */
-  public playTableBounce(intensity: number = 0.8): void {
-    if (!this.ctx || !this.masterGain || this.isMuted) return;
-    const now = this.ctx.currentTime;
-    const clampedIntensity = Math.min(1.3, Math.max(0.35, intensity));
-
-    // 1. Sharp initial impact transient (1350 Hz down to 800 Hz in 18ms)
-    const snapOsc = this.ctx.createOscillator();
-    const snapGain = this.ctx.createGain();
-    snapOsc.type = 'sine';
-    snapOsc.frequency.setValueAtTime(1350, now);
-    snapOsc.frequency.exponentialRampToValueAtTime(820, now + 0.02);
-
-    snapGain.gain.setValueAtTime(0.55 * clampedIntensity, now);
-    snapGain.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
-
-    snapOsc.connect(snapGain);
-    snapGain.connect(this.masterGain);
-    snapOsc.start(now);
-    snapOsc.stop(now + 0.03);
-
-    // 2. Wooden table body resonance: 510 Hz with fast exponential ringdown
-    const bodyOsc = this.ctx.createOscillator();
-    const bodyGain = this.ctx.createGain();
-    bodyOsc.type = 'sine';
-    bodyOsc.frequency.setValueAtTime(510, now);
-    bodyOsc.frequency.exponentialRampToValueAtTime(460, now + 0.045);
-
-    bodyGain.gain.setValueAtTime(0.48 * clampedIntensity, now);
-    bodyGain.gain.exponentialRampToValueAtTime(0.001, now + 0.048);
-
-    bodyOsc.connect(bodyGain);
-    bodyGain.connect(this.masterGain);
-    bodyOsc.start(now);
-    bodyOsc.stop(now + 0.05);
-
-    // 3. Wood click micro-transient
-    this.playBandpassNoise(0.015, 0.28 * clampedIntensity, 2400, 3.0);
-  }
-
-  /**
-   * Soft net tape brush / mesh flutter sound.
-   */
-  public playNetHit(): void {
-    if (!this.ctx || !this.masterGain || this.isMuted) return;
-    this.playBandpassNoise(0.07, 0.4, 1850, 2.0);
-  }
-
-  /**
-   * Pleasant broadcast chime when a point is scored.
-   */
-  public playScore(): void {
-    if (!this.ctx || !this.masterGain || this.isMuted) return;
-    const now = this.ctx.currentTime;
-
-    // Harmonic arpeggio: C5 -> G5
-    this.playTone(523.25, now, 0.12, 0.22);
-    this.playTone(783.99, now + 0.08, 0.25, 0.28);
-  }
-
-  /**
-   * Victory fanfare on game over.
-   */
-  public playGameOver(isWinner: boolean): void {
-    if (!this.ctx || !this.masterGain || this.isMuted) return;
-    const now = this.ctx.currentTime;
-
-    if (isWinner) {
-      // Ascending triumphant major fanfare
-      this.playTone(523.25, now, 0.14, 0.28); // C5
-      this.playTone(659.25, now + 0.12, 0.14, 0.28); // E5
-      this.playTone(783.99, now + 0.24, 0.14, 0.32); // G5
-      this.playTone(1046.50, now + 0.38, 0.45, 0.36); // C6
-    } else {
-      // Soft descending cadence
-      this.playTone(493.88, now, 0.18, 0.25); // B4
-      this.playTone(440.00, now + 0.16, 0.18, 0.25); // A4
-      this.playTone(392.00, now + 0.32, 0.35, 0.25); // G4
-    }
-  }
-
-  /**
-   * Clean tactile UI button click.
-   */
-  public playButtonClick(): void {
-    if (!this.ctx || !this.masterGain || this.isMuted) return;
-    const now = this.ctx.currentTime;
-
+    // Soft warm organic tap (340 Hz down to 210 Hz in 28ms)
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(800, now);
-    osc.frequency.exponentialRampToValueAtTime(320, now + 0.022);
+    osc.frequency.setValueAtTime(340, now);
+    osc.frequency.exponentialRampToValueAtTime(210, now + 0.028);
 
-    gain.gain.setValueAtTime(0.2, now);
-    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
+    // Keep volume gentle and subtle (~0.14)
+    const softVolume = 0.14 * clampedIntensity;
+    gain.gain.setValueAtTime(softVolume, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.035);
 
     osc.connect(gain);
     gain.connect(this.masterGain);
     osc.start(now);
-    osc.stop(now + 0.03);
+    osc.stop(now + 0.04);
+
+    // Subtle micro-click transient
+    this.playBandpassNoise(0.012, 0.06 * clampedIntensity, 1600, 3.0);
+  }
+
+  /**
+   * Clean, pleasant countdown beep for 3, 2, 1 and serve/play start.
+   */
+  public playCountdown(count: number | string): void {
+    if (!this.ctx || !this.masterGain || this.isMuted) return;
+    const now = this.ctx.currentTime;
+
+    const isFinal = count === 0 || count === '0' || count === 'SERVE' || count === 'PLAY' || count === 'SERVE!' || count === 'PLAY!';
+    const freq = isFinal ? 880 : 580; // High tone for start, medium tone for 3, 2, 1
+    const duration = isFinal ? 0.09 : 0.06;
+    const vol = isFinal ? 0.18 : 0.15;
+
+    this.playTone(freq, now, duration, vol);
+  }
+
+  // --- Silenced Sounds (Removed per user request to keep only paddle hit and countdown) ---
+  public playTableBounce(_intensity: number = 0.8): void {
+    // Silenced per user request
+  }
+
+  public playNetHit(): void {
+    // Silenced per user request
+  }
+
+  public playScore(): void {
+    // Silenced per user request
+  }
+
+  public playGameOver(_isWinner: boolean): void {
+    // Silenced per user request
+  }
+
+  public playButtonClick(): void {
+    // Silenced per user request
   }
 
   private playTone(freq: number, startTime: number, duration: number, vol: number): void {

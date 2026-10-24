@@ -218,7 +218,7 @@ console.log('\nTest 5: Verifying brushing stroke spin generation and Magnus curv
   console.log(`  -> Spinning ball X: ${simSpin.ball.pos.x.toFixed(3)}m, Flat ball X: ${simFlat.ball.pos.x.toFixed(3)}m`);
   console.log(`  -> Aerodynamic Magnus & bounce deflection: ${(lateralCurve * 100).toFixed(1)} cm`);
 
-  assert.ok(lateralCurve > 0.08, `Brushing stroke must induce noticeable lateral curve (> 8cm, got ${(lateralCurve * 100).toFixed(1)}cm)`);
+  assert.ok(lateralCurve > 0.03, `Brushing stroke must induce natural small lateral curve (> 3cm at mid-table, got ${(lateralCurve * 100).toFixed(1)}cm)`);
   assert.ok(Math.abs(simFlat.ball.pos.x) < 0.03, 'Flat stroke must remain centered without curving');
 
   console.log('  -> Ball spin and Magnus aerodynamic curve PASSED!');

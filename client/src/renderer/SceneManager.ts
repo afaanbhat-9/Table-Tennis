@@ -72,9 +72,22 @@ export class SceneManager {
   }
 
   public resetCamera(): void {
-    // Over-the-shoulder arcade perspective with natural court overview and bat clearance
-    this.camera.position.set(0, 1.48, 3.08);
-    this.camera.lookAt(0, 0.75, -0.28);
+    const width = this.container.clientWidth || window.innerWidth || 1280;
+    const height = this.container.clientHeight || window.innerHeight || 720;
+    const aspect = width / height;
+
+    if (aspect < 1.0) {
+      // Portrait / narrow mobile view: step back and elevate so the entire table and sidelines fit
+      const factor = Math.min(1.0, Math.max(0, (1.0 - aspect) / 0.55));
+      this.camera.position.set(0, 1.48 + factor * 0.48, 3.08 + factor * 1.52);
+      this.camera.lookAt(0, 0.75 - factor * 0.05, -0.28);
+      this.camera.fov = Math.min(72, 46 / Math.pow(aspect, 0.48));
+    } else {
+      this.camera.position.set(0, 1.48, 3.08);
+      this.camera.lookAt(0, 0.75, -0.28);
+      this.camera.fov = 44;
+    }
+    this.camera.updateProjectionMatrix();
   }
 
   private setupResize(): void {
@@ -86,10 +99,16 @@ export class SceneManager {
       const aspect = width / height;
       this.camera.aspect = aspect;
 
-      // In mobile portrait (aspect < 1.0), adapt FOV so table retains generous lateral margins
       if (aspect < 1.0) {
-        this.camera.fov = Math.min(66, 44 / Math.pow(aspect, 0.65));
+        // Adapt FOV and camera positioning for portrait / mobile screen so table fits 100%
+        const factor = Math.min(1.0, Math.max(0, (1.0 - aspect) / 0.55));
+        this.camera.position.set(0, 1.48 + factor * 0.48, 3.08 + factor * 1.52);
+        this.camera.lookAt(0, 0.75 - factor * 0.05, -0.28);
+        this.camera.fov = Math.min(72, 46 / Math.pow(aspect, 0.48));
       } else {
+        // Landscape / desktop view
+        this.camera.position.set(0, 1.48, 3.08);
+        this.camera.lookAt(0, 0.75, -0.28);
         this.camera.fov = 44;
       }
 

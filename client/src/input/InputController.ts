@@ -56,7 +56,7 @@ export class InputController {
   private readonly FLICK_MIN_DISPLACEMENT_PX = 18;
   private readonly FLICK_WINDOW_MS = 100;
 
-  // Sensitivity
+  // Sensitivity: 1:1 direct screen raycast so paddle is exactly where the cursor points
   public sensitivity: number = 1.0;
 
   // Callback when swing is triggered (for audio or visual effects)
@@ -74,7 +74,7 @@ export class InputController {
   }
 
   private bindEvents(): void {
-    const onPointerMove = (e: PointerEvent) => {
+    const onPointerMove = (e: PointerEvent | MouseEvent) => {
       this.handlePointerMove(e.clientX, e.clientY);
     };
 
@@ -99,7 +99,9 @@ export class InputController {
       this.pointerHistory = [];
     };
 
+    // Both pointermove and mousemove ensure seamless, uninterrupted input without micro-freezes
     window.addEventListener('pointermove', onPointerMove, { passive: true });
+    window.addEventListener('mousemove', onPointerMove, { passive: true });
     this.domElement.addEventListener('pointerdown', onPointerDown);
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerCancel);
@@ -173,17 +175,18 @@ export class InputController {
 
     this.raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
 
-    // 1. Forward / Backward Depth (Z) mapping:
-    // Pushing mouse forward (higher on screen, ndcY > -0.20) reaches forward over table towards net (down to Z ~ 0.95m)
-    // Pulling mouse backward (lower on screen, ndcY < -0.20) steps back behind table (up to Z ~ 2.05m)
-    const forwardReach = (ndcY + 0.20) * 1.35;
-    let targetZ = Math.max(0.95, Math.min(2.05, PLAYER_PADDLE_Z - forwardReach));
+    // 1. Stable Striking Depth (Z):
+    // Table baseline is at Z = 1.37m. The paddle stays at a stable, natural striking depth
+    // right behind the baseline (Z ~ 1.50m - 1.74m) so incoming balls naturally intercept cleanly!
+    const forwardReach = Math.max(-0.06, Math.min(0.24, (ndcY + 0.10) * 0.35));
+    let targetZ = Math.max(1.48, Math.min(1.78, 1.70 - forwardReach));
 
     const planeAtZ = new THREE.Plane(new THREE.Vector3(0, 0, 1), -targetZ);
     const intersectionPoint = new THREE.Vector3();
     const hit = this.raycaster.ray.intersectPlane(planeAtZ, intersectionPoint);
 
     if (hit) {
+      // Direct 1:1 screen mapping (where your cursor points is exactly where the paddle is!)
       const targetX = Math.max(PADDLE_MIN_X, Math.min(PADDLE_MAX_X, hit.x * this.sensitivity));
       const minY = getMinPaddleY(targetX, targetZ);
       const targetY = Math.max(minY, Math.min(PADDLE_MAX_Y, hit.y));
@@ -236,11 +239,11 @@ export class InputController {
 
     if (isFlick || isClickTrigger) {
       // Calculate swing direction in 3D:
-      // dx > 0: right cross-court / slice
-      // dx < 0: left cross-court / inside-out
+      // dx > 0: right cross-court / slice curve
+      // dx < 0: left cross-court / inside-out curve
       // dy < 0 (moving up on screen): topspin lift (+Y, -Z)
       // dy > 0 (moving down on screen): flat/chop smash (-Y, -Z)
-      const normDirX = (dx / (distPx || 1)) * 0.8;
+      const normDirX = (dx / (distPx || 1)) * 1.0;
       const normDirY = Math.max(-0.4, (-dy / (distPx || 1)) * 0.6);
       const dirZ = -1.0;
 
@@ -274,8 +277,8 @@ export class InputController {
     // 1. Update swing state machine
     this.swingState.update(dt);
 
-    // 2. Base paddle tracking in 3D (X, Y, and forward/backward Z!)
-    const smoothing = 1.0 - Math.exp(-36 * dt);
+    // 2. Base paddle tracking in 3D: ultra-responsive zero-latency follow
+    const smoothing = Math.min(1.0, 1.0 - Math.exp(-100 * dt));
     const cur = this.currentPaddle.pos;
     const prevX = cur.x;
     const prevY = cur.y;

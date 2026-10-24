@@ -1096,21 +1096,23 @@
 
     .flip-card {
       position: relative;
-      width: 32px;
-      height: 38px;
-      background: linear-gradient(180deg, #faf7f0 0%, #ede5d5 48%, #c5b8a3 49%, #b0a18a 51%, #ede4d3 52%, #fbf8f2 100%);
-      color: #19140f;
-      border-radius: 5px;
-      border: 1.5px solid #2d2013;
+      width: 36px;
+      height: 42px;
+      background: linear-gradient(180deg, #fffdf7 0%, #f3ece0 48%, #cfc1ab 49%, #b8a890 51%, #f3ece0 52%, #fffdf7 100%);
+      color: #1a140d;
+      border-radius: 6px;
+      border: 2px solid #2e2013;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 24px;
+      font-size: 26px;
       font-weight: 900;
       font-style: italic;
-      font-family: 'Impact', 'Trebuchet MS', sans-serif;
-      box-shadow: 0 3px 6px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.8), inset 0 -1px 0 rgba(0, 0, 0, 0.15);
-      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+      font-family: 'Impact', 'Trebuchet MS', 'Arial Black', sans-serif;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+      transition: transform 0.15s ease;
+      perspective: 600px;
     }
 
     .flip-card::after {
@@ -1123,6 +1125,30 @@
       background: rgba(50, 35, 20, 0.35);
       box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
       pointer-events: none;
+    }
+
+    @keyframes animeScoreFlipPop {
+      0% {
+        transform: scale(1) rotateX(0deg);
+        filter: brightness(1);
+      }
+      35% {
+        transform: scale(1.42) rotateX(-25deg);
+        filter: brightness(1.25) drop-shadow(0 0 14px #fbbf24) drop-shadow(0 0 20px #f59e0b);
+        color: #b45309;
+      }
+      70% {
+        transform: scale(1.1) rotateX(12deg);
+        filter: drop-shadow(0 0 8px #f59e0b);
+      }
+      100% {
+        transform: scale(1) rotateX(0deg);
+        filter: brightness(1);
+      }
+    }
+
+    .flip-card.score-pop {
+      animation: animeScoreFlipPop 0.55s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
     }
 
     .score-vs-tag {
@@ -1166,6 +1192,92 @@
       background: linear-gradient(135deg, #3d2d1f 0%, #291e14 100%);
       transform: scale(1.08);
       border-color: #f59e0b;
+    }
+
+    /* Anime Tournament Center Countdown */
+    .anime-countdown-container {
+      position: absolute;
+      top: 40%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      z-index: 100;
+      user-select: none;
+    }
+
+    .anime-countdown-container.active {
+      display: flex;
+    }
+
+    .anime-countdown-digit {
+      font-family: 'Impact', 'Trebuchet MS', 'Arial Black', sans-serif;
+      font-style: italic;
+      font-weight: 900;
+      font-size: clamp(84px, 16vw, 136px);
+      line-height: 1;
+      letter-spacing: 2px;
+      color: #ffffff;
+      background: linear-gradient(180deg, #ffffff 0%, #fef08a 35%, #f59e0b 65%, #dc2626 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 4px 0 #450a0a) drop-shadow(0 0 20px rgba(245, 158, 11, 0.85)) drop-shadow(0 0 45px rgba(239, 68, 68, 0.6));
+      text-transform: uppercase;
+      will-change: transform, opacity;
+    }
+
+    .anime-countdown-digit.burst {
+      animation: animeDigitBurst 0.85s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+    }
+
+    .anime-countdown-sub {
+      font-family: 'Impact', 'Trebuchet MS', 'Arial Black', sans-serif;
+      font-style: italic;
+      font-weight: 900;
+      font-size: clamp(18px, 4vw, 28px);
+      letter-spacing: 4px;
+      color: #fef08a;
+      text-shadow: 2px 2px 0 #450a0a, 0 0 14px rgba(245, 158, 11, 0.85);
+      text-transform: uppercase;
+      margin-top: 6px;
+      animation: animeSubPulse 0.85s ease-out both;
+    }
+
+    @keyframes animeDigitBurst {
+      0% {
+        transform: scale(0.2) rotate(-14deg);
+        opacity: 0;
+      }
+      38% {
+        transform: scale(1.35) rotate(4deg);
+        opacity: 1;
+      }
+      68% {
+        transform: scale(1.04) rotate(-2deg);
+        opacity: 1;
+      }
+      100% {
+        transform: scale(1) rotate(0deg);
+        opacity: 0.95;
+      }
+    }
+
+    @keyframes animeSubPulse {
+      0% {
+        transform: translateY(12px) scale(0.8);
+        opacity: 0;
+      }
+      40% {
+        transform: translateY(0) scale(1.1);
+        opacity: 1;
+      }
+      100% {
+        transform: translateY(0) scale(1);
+        opacity: 1;
+      }
     }
 
     /* Announcements */
@@ -1334,6 +1446,36 @@
       }
     }
 
+    @media (max-width: 480px) {
+      .scoreboard-container {
+        top: 6px;
+        padding: 2px 6px;
+        gap: 4px;
+      }
+      .anime-chip {
+        font-size: 9px;
+        padding: 1px 3.5px;
+      }
+      .flip-card {
+        width: 24px;
+        height: 30px;
+        font-size: 16px;
+      }
+      .score-vs-tag {
+        font-size: 9.5px;
+      }
+      .top-actions {
+        top: 6px;
+        right: 6px;
+        gap: 3px;
+      }
+      .circle-btn {
+        width: 26px;
+        height: 26px;
+        font-size: 11px;
+      }
+    }
+
     @media (max-width: 600px) {
       .menu-topbar {
         padding: 8px 14px;
@@ -1441,6 +1583,12 @@
       <button id="btn-mute" class="circle-btn" title="Toggle Sound">
         <span id="mute-icon">🔊</span>
       </button>
+    </div>
+
+    <!-- Anime Tournament Countdown Overlay -->
+    <div id="countdown-overlay" class="anime-countdown-container">
+      <div id="countdown-digit" class="anime-countdown-digit">3</div>
+      <div id="countdown-sub" class="anime-countdown-sub">READY...</div>
     </div>
 
     <!-- Match Announcement Banner -->

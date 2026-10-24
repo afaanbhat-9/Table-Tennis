@@ -60,6 +60,7 @@ export class PhysicsSimulation {
   // Serve toss apex tracking for ITTF 16cm height validation
   private serveTossStartY: number = 0;
   private serveTossMaxY: number = 0;
+  public serveTargetX: number | null = null;
 
   constructor() {
     this.ball = this.createDefaultBall();
@@ -96,7 +97,8 @@ export class PhysicsSimulation {
    * Prepares a legal serve stance above the server's table half.
    * The ball rests in the server's hand/in front of the paddle.
    */
-  public prepareServe(server: PlayerSide, serveX?: number): void {
+  public prepareServe(server: PlayerSide, serveX?: number, serveTargetX?: number): void {
+    this.serveTargetX = serveTargetX !== undefined ? serveTargetX : null;
     const isP1 = server === 'player1';
     const startX = serveX !== undefined ? serveX : 0.12 * (Math.random() - 0.5);
     const startY = TABLE_HEIGHT + 0.14;
@@ -368,9 +370,9 @@ export class PhysicsSimulation {
     b.spin.y *= spinDamp;
     b.spin.z *= spinDamp;
 
-    // Table corridor boundary constraint: keep ball near table, prevent wide left/right drift
-    const maxTableSideX = TABLE_MAX_X + 0.16; // ~0.92m
-    if (Math.abs(b.pos.x) > maxTableSideX) {
+    // Play corridor boundary constraint: allow generous room for curving shots and angled returns
+    const maxPlaySideX = TABLE_MAX_X + 0.55; // ~1.31m
+    if (Math.abs(b.pos.x) > maxPlaySideX) {
       b.vel.x += -Math.sign(b.pos.x) * 4.5 * dt;
     }
 
@@ -400,12 +402,14 @@ export class PhysicsSimulation {
         b.pos.y = surfaceY;
         b.vel.y = Math.abs(b.vel.y) * TABLE_RESTITUTION;
 
-        // Spin transfer on bounce:
-        // Topspin speeds the ball up forward; backspin slows it down
+        // Spin transfer on bounce (mimicking real-world table tennis spin-kick):
+        // Topspin accelerates the ball forward; backspin slows it down
         const flightDirZ = b.vel.z > 0 ? 1 : -1;
         const spinKickZ = flightDirZ * (b.spin.x * 0.0025);
         b.vel.z = b.vel.z * 0.96 + spinKickZ;
-        b.vel.x = b.vel.x * 0.95 + b.spin.y * SPIN_BOUNCE_FRICTION;
+        // Sidespin kicks the ball laterally in the direction of the curve upon table contact
+        const spinKickX = -flightDirZ * b.spin.y * SPIN_BOUNCE_FRICTION;
+        b.vel.x = b.vel.x * 0.95 + spinKickX;
 
         // Decay spin by 20% (ω *= 0.8) on each bounce
         b.spin.x *= SPIN_BOUNCE_DECAY;
@@ -681,18 +685,19 @@ export class PhysicsSimulation {
     const dirZ = isP1 ? -1 : 1;
 
     const isServeToss = b.isServe && (b.serveState === 'tossed' || b.serveState === 'held');
-    // Forgiving Hitbox: 35% larger invisible collision radius without altering visual mesh
-    const hitRadius = isServeToss ? (SERVE_BALL_OFFSET_Y + 0.16) : PADDLE_HITBOX_RADIUS;
-    const thickness = isServeToss ? (SERVE_BALL_OFFSET_Z + 0.08) : 0.28;
+    // Generous Hitbox for Player 1 (human player on 2D screen without VR depth perception):
+    // Expanded collision radius (22cm) and depth thickness (38cm) guarantees that whenever you
+    // visually line up the paddle with the ball on screen, contact connects cleanly and intuitively!
+    const hitRadius = isP1 ? 0.22 : (isServeToss ? (SERVE_BALL_OFFSET_Y + 0.16) : PADDLE_HITBOX_RADIUS);
+    const thickness = isP1 ? 0.38 : (isServeToss ? (SERVE_BALL_OFFSET_Z + 0.08) : 0.28);
 
     // Paddle disk center & offsets at current position
     let dx = b.pos.x - paddle.pos.x;
     let dy = b.pos.y - paddle.pos.y;
     let dz = b.pos.z - paddle.pos.z;
 
-    // Forgiving Hitbox: table tennis players track visually on screen.
-    // Vertical height tolerance is relaxed (effectiveDy = dy * 0.45) so balls near the blade cleanly connect!
-    const effectiveDy = dy * 0.45;
+    // Height tolerance is relaxed (effectiveDy) so balls near the blade cleanly connect!
+    const effectiveDy = dy * (isP1 ? 0.35 : 0.45);
     let radialDist = Math.hypot(dx, effectiveDy);
     let isHit = radialDist <= hitRadius && Math.abs(dz) <= thickness;
 
@@ -701,11 +706,13 @@ export class PhysicsSimulation {
       const segDz = b.pos.z - prevPos.z;
       if (Math.abs(segDz) > 1e-5) {
         const t = (paddle.pos.z - prevPos.z) / segDz;
-        if (t >= -0.25 && t <= 1.25) {
+        const tMin = isP1 ? -0.45 : -0.25;
+        const tMax = isP1 ? 1.45 : 1.25;
+        if (t >= tMin && t <= tMax) {
           const clampedT = Math.max(0, Math.min(1, t));
           const sweptX = prevPos.x + clampedT * (b.pos.x - prevPos.x);
           const sweptY = prevPos.y + clampedT * (b.pos.y - prevPos.y);
-          const sweptRadial = Math.hypot(sweptX - paddle.pos.x, (sweptY - paddle.pos.y) * 0.45);
+          const sweptRadial = Math.hypot(sweptX - paddle.pos.x, (sweptY - paddle.pos.y) * (isP1 ? 0.35 : 0.45));
           if (sweptRadial <= hitRadius) {
             isHit = true;
             b.pos.x = sweptX;
@@ -739,7 +746,9 @@ export class PhysicsSimulation {
         b.serveState = 'in_play';
         const forwardSpeed = Math.max(4.50, Math.min(5.10, 4.75 + forwardPaddleSpeed * 0.08));
         const sideBrush = paddle.vel.x;
-        const sideSpin = Math.max(-MAX_SPIN * 0.7, Math.min(MAX_SPIN * 0.7, (sideBrush * 16.0) + (dx / PADDLE_RADIUS) * 12.0));
+        const sideSpin = dirZ === -1
+          ? Math.max(-MAX_SPIN * 0.7, Math.min(MAX_SPIN * 0.7, (sideBrush * 24.0) + (dx / PADDLE_RADIUS) * 18.0))
+          : Math.max(-MAX_SPIN * 0.7, Math.min(MAX_SPIN * 0.7, -(sideBrush * 24.0) - (dx / PADDLE_RADIUS) * 18.0));
 
         // Net clearance trajectory calculation:
         // Guarantees ball rebounds above net tape cleanly and lands safely in receiver court
@@ -752,23 +761,21 @@ export class PhysicsSimulation {
         const requiredImpactVy = requiredReboundVy / TABLE_RESTITUTION;
         const vy = -(requiredImpactVy - GRAVITY * t1);
 
-        // Aim serve dynamically across court (human aiming from blade/swipe; AI aiming across corners/angles)
+        // Aim serve dynamically across court (human aiming from blade/swipe; AI aiming across corners/angles/center)
         const receiverTargetZ = isP1 ? -0.85 : 0.85;
         let targetX: number;
         if (isP1) {
           targetX = (dx / PADDLE_RADIUS) * 0.45 + paddle.vel.x * 0.25;
         } else {
-          // AI bot serve aiming:
-          // Near-center stances (Casual/mid) aim gently near center line; wide stances use corners
-          const isNearCenter = Math.abs(paddle.pos.x) < 0.22;
-          if (isNearCenter) {
-            targetX = (Math.random() - 0.5) * 0.16; // gentle center-area serve
+          // AI bot serve aiming: use selected serve target across court (left, right, center)
+          if (this.serveTargetX !== null && this.serveTargetX !== undefined) {
+            targetX = this.serveTargetX;
           } else {
-            const targetSides = [-0.36, 0.36, -0.22, 0.22, 0.0];
+            const targetSides = [-0.34, 0.34, -0.18, 0.18, 0.0];
             targetX = targetSides[Math.floor(Math.random() * targetSides.length)];
           }
         }
-        targetX = Math.max(-0.52, Math.min(0.52, targetX));
+        targetX = Math.max(-0.54, Math.min(0.54, targetX));
 
         const tTotal = Math.abs((b.pos.z - receiverTargetZ) / forwardSpeed);
         const rawVx = (targetX - b.pos.x) / (tTotal || 0.44);
@@ -840,56 +847,18 @@ export class PhysicsSimulation {
         newVz = forwardSpeed;
       }
 
-      // Swipe Spin & Aiming:
-      // Use paddle's movement vector during contact to angle ball left/right across table
-      const swipeAimAngle = paddle.vel.x * 0.22 + (dx / PADDLE_RADIUS) * 0.22;
-      const courtCentering = -b.pos.x * 0.50;
-      let newVx = swipeAimAngle + courtCentering;
-      newVx = Math.max(-1.45, Math.min(1.45, newVx));
+      // 1. Swipe Spin & Curving Shot physics (mimicking real-world table tennis):
+      // Brushing laterally across the ball generates a clear, authentic curving arc (~12-16cm bend).
+      // Brushing to the right curves to the right; brushing to the left curves to the left.
+      const sideSpinDir = isP1 ? 1 : -1;
+      const lateralBrush = paddle.vel.x;
+      const offCenterBrush = (dx / PADDLE_RADIUS) * 12.0;
+      const swipeSidespin = sideSpinDir * (lateralBrush * 18.0 + offCenterBrush);
+      const spinY = Math.max(-110.0, Math.min(110.0, swipeSidespin));
 
-      // Dynamic Net Clearance & Return Arc:
-      // Computes realistic return trajectory based on bat normal (tilt), stroke velocity, and landing target
-      const distToNet = Math.abs(b.pos.z);
-      const avgForwardSpeed = forwardSpeed * 0.90; // account for aerodynamic drag deceleration
-      const timeToNet = Math.max(0.10, Math.min(0.50, distToNet / (avgForwardSpeed || 1)));
-      const effectiveG = GRAVITY + 2.0; // accounts for air drag and topspin downward Magnus force
-      const targetNetHeight = NET_Y_TOP + 0.038; // 3.8cm clearance above net tape
-      const minVyToClear = (targetNetHeight - b.pos.y + 0.5 * effectiveG * timeToNet * timeToNet) / timeToNet;
-
-      // Opponent landing calculation (aimed to land between Z = 0.60 and 1.15 in opponent court)
-      const targetLandingZ = isP1 ? -0.85 : 0.85;
-      const distToLanding = Math.abs(b.pos.z - targetLandingZ);
-      const timeToLand = Math.max(0.22, Math.min(0.70, distToLanding / (avgForwardSpeed || 1)));
-      const landingSurfaceY = TABLE_HEIGHT + BALL_RADIUS;
-      const targetVyForLanding = (landingSurfaceY - b.pos.y + 0.5 * effectiveG * timeToLand * timeToLand) / timeToLand;
-
-      // Launch velocity combines landing arc with bat tilt and vertical stroke:
-      // - Upward bat tilt (normal.y > 0) creates higher arc and deeper bounce
-      // - Downward bat tilt (normal.y < 0) creates flatter, lower drive
-      // - Upward brush (paddle.vel.y > 0) adds topspin lift
-      const tiltInfluence = normal.y * 3.2;
-      const strokeInfluence = Math.max(-0.4, Math.min(1.2, paddle.vel.y * 0.30));
-      let newVy = targetVyForLanding + tiltInfluence + strokeInfluence;
-
-      // Net clearance guarantee: ball clears net cleanly onto opponent side for valid hits
-      if (isSmash || forwardSpeed >= 7.2) {
-        // Fast drive / smash: flat trajectory skimming above net tape into opponent court
-        newVy = Math.max(minVyToClear, Math.min(1.45, newVy));
-      } else {
-        // Rally returns: guarantee net clearance and pleasant readable arc
-        const clampedMinVy = b.pos.y > (NET_Y_TOP + 0.12) ? Math.max(0.70, minVyToClear) : Math.max(1.60, minVyToClear);
-        newVy = Math.max(clampedMinVy, Math.min(2.55, Math.max(clampedMinVy, newVy)));
-      }
-
-      // Swipe Spin:
-      // Use paddle's movement vector during contact to apply spin (ω)
-      // Horizontal swipe (paddle.vel.x) generates sidespin (spin.y)
-      const swipeSidespin = (paddle.vel.x * 20.0) + (dx / PADDLE_RADIUS) * 15.0;
-      const spinY = Math.max(-MAX_SPIN, Math.min(MAX_SPIN, swipeSidespin));
-
-      // Vertical swipe (paddle.vel.y) generates topspin/backspin (spin.x)
-      // Upward brush (paddle.vel.y > 0) creates topspin; downward brush creates backspin
-      const swipeTopspin = 25.0 + paddle.vel.y * 22.0;
+      // Natural topspin dip keeps curving shots cleanly on the table
+      const curveTopspin = Math.abs(spinY) * 0.28;
+      const swipeTopspin = 24.0 + Math.max(-12.0, paddle.vel.y * 18.0) + curveTopspin;
       const spinX = Math.max(-MAX_SPIN, Math.min(MAX_SPIN, swipeTopspin));
 
       b.spin = {
@@ -897,6 +866,65 @@ export class PhysicsSimulation {
         y: spinY,
         z: 0
       };
+
+      // 2. Dynamic Net Clearance & Landing Arc:
+      const distToNet = Math.abs(b.pos.z);
+      const avgForwardSpeed = forwardSpeed * 0.90; // account for aerodynamic drag deceleration
+      const timeToNet = Math.max(0.10, Math.min(0.50, distToNet / (avgForwardSpeed || 1)));
+      const effectiveG = GRAVITY + 2.0 + Math.max(0, spinX * MAGNUS_COEFFICIENT * forwardSpeed * 0.5);
+      const targetNetHeight = NET_Y_TOP + 0.038; // 3.8cm clearance above net tape
+      const minVyToClear = (targetNetHeight - b.pos.y + 0.5 * effectiveG * timeToNet * timeToNet) / timeToNet;
+
+      // Opponent landing target Z
+      const targetLandingZ = isP1 ? -0.88 : 0.88;
+      const distToLanding = Math.abs(b.pos.z - targetLandingZ);
+      const timeToLand = Math.max(0.25, Math.min(0.65, distToLanding / (avgForwardSpeed || 1)));
+      const landingSurfaceY = TABLE_HEIGHT + BALL_RADIUS;
+      const targetVyForLanding = (landingSurfaceY - b.pos.y + 0.5 * effectiveG * timeToLand * timeToLand) / timeToLand;
+
+      // Launch vertical velocity combines landing arc with bat tilt and stroke:
+      const tiltInfluence = normal.y * 3.2;
+      const strokeInfluence = Math.max(-0.4, Math.min(1.2, paddle.vel.y * 0.30));
+      let newVy = targetVyForLanding + tiltInfluence + strokeInfluence;
+
+      if (isSmash || forwardSpeed >= 7.2) {
+        newVy = Math.max(minVyToClear, Math.min(1.45, newVy));
+      } else {
+        const clampedMinVy = b.pos.y > (NET_Y_TOP + 0.12) ? Math.max(0.70, minVyToClear) : Math.max(1.60, minVyToClear);
+        newVy = Math.max(clampedMinVy, Math.min(2.55, Math.max(clampedMinVy, newVy)));
+      }
+
+      // 3. Magnus Aerodynamic Lateral Curve Compensation:
+      // F_magnusX = -MAGNUS_COEFFICIENT * (b.spin.y * b.vel.z)
+      // For P1 (vel.z < 0): a_magnusX = MAGNUS_COEFFICIENT * spinY * forwardSpeed
+      // For P2 (vel.z > 0): a_magnusX = -MAGNUS_COEFFICIENT * spinY * forwardSpeed
+      const effectiveCurveAccel = -dirZ * MAGNUS_COEFFICIENT * spinY * forwardSpeed;
+      const deltaXCurve = 0.5 * effectiveCurveAccel * (timeToLand * timeToLand);
+
+      // 4. Opponent Court Landing Target (mimicking real-world table tennis curving shots):
+      // Visible, natural curving arc that bends in flight and lands cleanly on table
+      const curveSideBias = (isP1 ? 1 : -1) * Math.sign(spinY) * Math.min(0.24, Math.abs(spinY) * 0.0024);
+      const strokeAim = (dx / PADDLE_RADIUS) * 0.12;
+      const centering = b.pos.x * 0.25;
+      let desiredLandingX = Math.max(-0.52, Math.min(0.52, centering + curveSideBias + strokeAim));
+
+      if (!isP1) {
+        // AI return realism: off-center contact when stretched creates authentic unforced errors
+        const offCenterDist = Math.max(0, radialDist - 0.05);
+        if (offCenterDist > 0.025) {
+          const errorSign = (dx !== 0 ? Math.sign(dx) : (Math.random() > 0.5 ? 1 : -1));
+          desiredLandingX += errorSign * offCenterDist * 2.2;
+          // When severely stretched, occasional net clip or long ball
+          if (offCenterDist > 0.055 && Math.random() < 0.28) {
+            newVy += (Math.random() > 0.5 ? 0.30 : -0.42);
+          }
+        }
+      }
+
+      // Initial Vx: Compensates for aerodynamic curve displacement so the natural curve lands cleanly on the table!
+      let newVx = (desiredLandingX - b.pos.x - deltaXCurve) / timeToLand;
+      newVx = Math.max(-1.8, Math.min(1.8, newVx));
+      newVx = Math.max(-1.45, Math.min(1.45, newVx));
 
       b.vel.x = Math.max(-2.2, Math.min(2.2, newVx));
       b.vel.y = newVy;

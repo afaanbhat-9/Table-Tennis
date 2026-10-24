@@ -32,6 +32,14 @@ export class UIManager {
   private bannerText = document.getElementById('announcement-text')!;
   private bannerSub = document.getElementById('announcement-sub')!;
 
+  private countdownOverlay = document.getElementById('countdown-overlay')!;
+  private countdownDigit = document.getElementById('countdown-digit')!;
+  private countdownSub = document.getElementById('countdown-sub')!;
+  private countdownTimer: any = null;
+
+  private prevScoreP1: number = 0;
+  private prevScoreP2: number = 0;
+
   private btnPause = document.getElementById('btn-pause')!;
   private btnMute = document.getElementById('btn-mute')!;
   private muteIcon = document.getElementById('mute-icon')!;
@@ -481,10 +489,20 @@ export class UIManager {
 
   public showHUD(mode: 'singleplayer' | 'multiplayer', p1Name: string = 'YOU', p2Name: string = 'CPU'): void {
     this.hideAllModals();
+    this.hideCountdown();
     document.body.classList.add('in-game');
     this.hudOverlay.style.display = 'block';
     this.hudNameP1.innerText = p1Name;
     this.hudNameP2.innerText = p2Name;
+
+    // Reset scores cleanly
+    this.prevScoreP1 = 0;
+    this.prevScoreP2 = 0;
+    this.hudScoreP1.innerText = '0';
+    this.hudScoreP2.innerText = '0';
+    this.hudScoreP1.classList.remove('score-pop');
+    this.hudScoreP2.classList.remove('score-pop');
+
     this.hudModeLabel.innerText = mode === 'singleplayer' ? `Singleplayer (${this.selectedDifficulty})` : 'Online Party Match';
     this.hudPingLabel.style.display = mode === 'multiplayer' ? 'inline' : 'none';
   }
@@ -492,11 +510,25 @@ export class UIManager {
   public hideHUD(): void {
     document.body.classList.remove('in-game');
     this.hudOverlay.style.display = 'none';
+    this.hideCountdown();
   }
 
   public updateScoreboard(score: MatchScore, server: PlayerSide): void {
-    this.hudScoreP1.innerText = score.player1.toString();
-    this.hudScoreP2.innerText = score.player2.toString();
+    if (score.player1 !== this.prevScoreP1) {
+      this.hudScoreP1.innerText = score.player1.toString();
+      if (score.player1 > this.prevScoreP1) {
+        this.triggerScoreCardAnimation(this.hudScoreP1);
+      }
+      this.prevScoreP1 = score.player1;
+    }
+
+    if (score.player2 !== this.prevScoreP2) {
+      this.hudScoreP2.innerText = score.player2.toString();
+      if (score.player2 > this.prevScoreP2) {
+        this.triggerScoreCardAnimation(this.hudScoreP2);
+      }
+      this.prevScoreP2 = score.player2;
+    }
 
     if (server === 'player1') {
       this.hudServeP1.classList.add('active');
@@ -504,6 +536,56 @@ export class UIManager {
     } else {
       this.hudServeP2.classList.add('active');
       this.hudServeP1.classList.remove('active');
+    }
+  }
+
+  private triggerScoreCardAnimation(el: HTMLElement): void {
+    el.classList.remove('score-pop');
+    void el.offsetWidth;
+    el.classList.add('score-pop');
+  }
+
+  public showCountdown(count: number | string, subText?: string): void {
+    if (!this.countdownOverlay || !this.countdownDigit) return;
+
+    if (this.countdownTimer) {
+      clearTimeout(this.countdownTimer);
+      this.countdownTimer = null;
+    }
+
+    const str = count.toString().toUpperCase();
+    this.countdownDigit.innerText = str;
+
+    if (typeof count === 'number') {
+      this.countdownDigit.style.fontSize = '';
+      this.countdownSub.innerText = subText || (count === 3 ? 'READY...' : count === 1 ? 'GET SET!' : 'FOCUS!');
+    } else {
+      this.countdownDigit.style.fontSize = 'clamp(44px, 9vw, 80px)';
+      this.countdownSub.innerText = subText || 'RALLY START!';
+    }
+
+    this.countdownOverlay.classList.add('active');
+    this.countdownDigit.classList.remove('burst');
+    void this.countdownDigit.offsetWidth;
+    this.countdownDigit.classList.add('burst');
+
+    const duration = typeof count === 'number' ? 880 : 1050;
+    this.countdownTimer = setTimeout(() => {
+      this.countdownOverlay.classList.remove('active');
+      this.countdownDigit.classList.remove('burst');
+    }, duration);
+  }
+
+  public hideCountdown(): void {
+    if (this.countdownTimer) {
+      clearTimeout(this.countdownTimer);
+      this.countdownTimer = null;
+    }
+    if (this.countdownOverlay) {
+      this.countdownOverlay.classList.remove('active');
+      if (this.countdownDigit) {
+        this.countdownDigit.classList.remove('burst');
+      }
     }
   }
 
