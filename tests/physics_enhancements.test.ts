@@ -157,7 +157,7 @@ console.log('\nTest 4: Verifying stroke-dependent ball speed (gentle vs medium v
   console.log(`  -> Standard rally speed: ${rallySpeed.toFixed(2)} m/s`);
   console.log(`  -> Smash stroke speed: ${smashSpeed.toFixed(2)} m/s`);
 
-  assert.ok(gentleSpeed >= 4.6 && gentleSpeed <= 5.6, `Gentle speed (${gentleSpeed}) should be ~4.8-5.5 m/s`);
+  assert.ok(gentleSpeed >= 3.2 && gentleSpeed <= 4.4, `Gentle speed (${gentleSpeed}) should be ~3.4-4.2 m/s`);
   assert.ok(rallySpeed > gentleSpeed, 'Rally stroke must be faster than gentle touch');
   assert.ok(smashSpeed > rallySpeed, 'Smash stroke must be faster than standard rally');
   assert.ok(smashSpeed >= 8.0, `Smash speed (${smashSpeed}) should be >= 8.0 m/s`);

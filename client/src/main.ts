@@ -53,6 +53,7 @@ class GameApp {
     this.netClient = new NetworkClient();
 
     this.spPhysics = new PhysicsSimulation();
+    this.spPhysics.setAIDifficulty('medium');
     this.spRules = new RuleEngine();
     this.spAI = new TableTennisAI('medium');
 
@@ -222,6 +223,7 @@ class GameApp {
     this.spAI.reset();
     this.spRules.reset('player1');
     this.spPhysics = new PhysicsSimulation();
+    this.spPhysics.setAIDifficulty(difficulty);
 
     this.uiManager.showHUD('singleplayer', 'YOU', 'CPU');
     this.uiManager.updateScoreboard(this.spRules.score, 'player1');

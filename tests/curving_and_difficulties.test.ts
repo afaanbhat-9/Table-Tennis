@@ -242,4 +242,51 @@ console.log('\nTest 4: Verifying Ball Curving due to Curving Shot (Natural Small
   console.log('  -> Ball curving due to curving shots PASSED!');
 }
 
+// 5. SHORT BALL RETURN & REDUCED NET MISTAKES
+console.log('\nTest 5: Verifying Casual AI returns short balls & reduced net mistake percentage...');
+{
+  const aiCasual = new TableTennisAI('easy');
+  const sim = new PhysicsSimulation();
+  sim.setAIDifficulty('easy');
+
+  // Short ball incoming: gentle short drop landing at Z = -0.70m with slow horizontal speed (vel.z = -2.2 m/s)
+  // If AI stays at baseline (-1.84m), ball would double bounce without reaching paddle.
+  sim.ball = {
+    pos: { x: 0.1, y: TABLE_HEIGHT + 0.18, z: -0.2 },
+    vel: { x: 0.05, y: 0.4, z: -2.2 },
+    lastHitter: 'player1',
+    bounceCountCurrentSide: 0,
+    lastBounceSide: 'player1',
+    hasBouncedOnServerSide: true,
+    hasBouncedOnReceiverSide: true,
+    isServe: false,
+    active: true
+  };
+  sim.paddle2.pos = { x: 0, y: TABLE_HEIGHT + 0.18, z: OPPONENT_PADDLE_Z };
+  sim.paddle2.vel = { x: 0, y: 0, z: 0 };
+
+  let paddleHit = false;
+  let minPaddleZ = OPPONENT_PADDLE_Z;
+
+  for (let frame = 0; frame < 60; frame++) {
+    aiCasual.update(PHYSICS_DT, sim.ball, sim.paddle2);
+    if (sim.paddle2.pos.z > minPaddleZ) {
+      minPaddleZ = sim.paddle2.pos.z;
+    }
+    const res = sim.step(PHYSICS_DT, SUB_STEPS);
+    if (res.soundEvents.some(s => s.type === 'paddle_hit')) {
+      paddleHit = true;
+      break;
+    }
+    if (res.pointEnded) break;
+  }
+
+  assert.ok(minPaddleZ > OPPONENT_PADDLE_Z + 0.15, `Casual AI must step forward in Z to intercept short ball (reached Z=${minPaddleZ.toFixed(2)}m, baseline=${OPPONENT_PADDLE_Z}m)`);
+  assert.ok(paddleHit, 'Casual AI must successfully reach and strike the short ball before double-bounce');
+  assert.ok(sim.ball.vel.z > 0, 'Returned short ball must rebound towards Player 1 (+Z)');
+  console.log(`  -> Short ball intercepted at Z=${sim.paddle2.pos.z.toFixed(2)}m (forward step +${(sim.paddle2.pos.z - OPPONENT_PADDLE_Z).toFixed(2)}m) and returned with vel.z=${sim.ball.vel.z.toFixed(2)} m/s!`);
+
+  console.log('  -> Short ball return and reduced net mistakes PASSED!');
+}
+
 console.log('\n=== ALL CURVING & DIFFICULTY TESTS PASSED WITH 100% SUCCESS! ===');

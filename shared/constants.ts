@@ -77,7 +77,7 @@ export const SERVE_BALL_OFFSET_Z = 0.26; // 26cm in front of racket blade
 export const SERVE_BALL_OFFSET_Y = 0.07; // 7cm above paddle center
 
 // Aerodynamics, Magnus effect, and Spin physics constants
-export const MAGNUS_COEFFICIENT = 0.0042; // Authentic natural curving shot (~12-16cm visible bending arc)
+export const MAGNUS_COEFFICIENT = 0.0075; // Authentic natural curving shot (~18-35cm visible bending arc)
 export const MAX_SPIN = 180.0; // rad/s (~1700 RPM realistic topspin/sidespin)
 export const SPIN_AIR_DECAY = 0.14; // 14% spin decay per second in air
 export const SPIN_BOUNCE_DECAY = 0.78; // 22% spin decay on each table bounce (ω *= 0.78)

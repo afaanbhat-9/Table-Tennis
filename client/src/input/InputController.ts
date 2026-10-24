@@ -52,8 +52,8 @@ export class InputController {
   private planeZ: THREE.Plane;
 
   // Flick thresholds tuned for physical mouse, laptop trackpad, and touch screens
-  private readonly FLICK_MIN_SPEED_PX = 850;
-  private readonly FLICK_MIN_DISPLACEMENT_PX = 18;
+  private readonly FLICK_MIN_SPEED_PX = 450;
+  private readonly FLICK_MIN_DISPLACEMENT_PX = 12;
   private readonly FLICK_WINDOW_MS = 100;
 
   // Sensitivity: 1:1 direct screen raycast so paddle is exactly where the cursor points

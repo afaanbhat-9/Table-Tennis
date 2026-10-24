@@ -1,6 +1,8 @@
 import {
   BALL_RADIUS,
   TABLE_HEIGHT,
+  TABLE_WIDTH,
+  TABLE_LENGTH,
   OPPONENT_PADDLE_Z,
   GRAVITY,
   AIR_DRAG,
@@ -29,31 +31,31 @@ interface AIDifficultyConfig {
 
 const DIFFICULTY_CONFIGS: Record<AIDifficulty, AIDifficultyConfig> = {
   easy: {
-    reactionDelayMs: 290,       // Relaxed, forgiving beginner reaction delay
-    predictionError: 0.10,      // Natural variance; can miss or mishit fast/wide shots
-    maxSpeed: 2.1,              // Relaxed movement pace; player can win points with corner/fast shots
-    lerpRate: 6.5,              // Smooth, forgiving movement
-    reachLimitX: 0.65,          // Comfortable reach; wide angled shots become clear winners for the player
-    swingAggression: 0.05,      // Gentle, friendly returns with zero aggressive smashes
-    returnPlacementBias: 0.08   // Places returns safely towards center court, easy to rally
+    reactionDelayMs: 320,       // Slow, forgiving beginner reaction delay
+    predictionError: 0.14,      // Natural beginner variance; easily beaten by placement
+    maxSpeed: 1.5,              // Relaxed movement pace; player smashes and corner drives score easily
+    lerpRate: 5.0,              // Smooth, forgiving tracking
+    reachLimitX: 0.42,          // Corners (> 0.44m) are clear winners for the player
+    swingAggression: 0.0,       // Zero smashes; gentle, readable returns
+    returnPlacementBias: 0.04   // Returns directly towards center court
   },
   medium: {
-    reactionDelayMs: 215,       // Realistic intermediate human reaction delay
-    predictionError: 0.065,     // Moderate variance; beaten by well-placed smashes and fast rallies
-    maxSpeed: 3.1,              // Balanced pace; competitive yet definitely beatable
-    lerpRate: 8.5,              // Steady tracking
-    reachLimitX: 0.74,          // Accessible reach; sharp angles can pass the bot
-    swingAggression: 0.22,      // Moderate, controlled returns
-    returnPlacementBias: 0.28   // Good variety without overwhelming the player
+    reactionDelayMs: 250,       // Human intermediate reaction delay (player can outpace it!)
+    predictionError: 0.075,     // Human variance; beaten by angled shots and smashes
+    maxSpeed: 2.2,              // Balanced pace: cross-court drives cleanly beat the Pro bot!
+    lerpRate: 7.2,              // Realistic tracking
+    reachLimitX: 0.55,          // Corners (> 58cm) cleanly pass the Pro bot for earned points!
+    swingAggression: 0.10,      // Friendly, enjoyable rally returns (no laser smashes)
+    returnPlacementBias: 0.18   // Good variety without unfair extreme angles
   },
   hard: {
-    reactionDelayMs: 165,       // Fast tournament-level reaction, but human and beatable
-    predictionError: 0.035,     // Minor variance; sharp drives and smashes can win points
-    maxSpeed: 4.1,              // Fast and alert, but won't teleport like a robotic wall
-    lerpRate: 11.5,             // Sharp tracking
-    reachLimitX: 0.82,          // Strong coverage, but deep corner drives can score
-    swingAggression: 0.48,      // Strategic attacks rather than endless overwhelming smashes
-    returnPlacementBias: 0.45   // Varied placement creating enjoyable, rewarding rallies
+    reactionDelayMs: 215,       // Alert tournament player, but human and beatable
+    predictionError: 0.05,      // Realistic variance; sharp drives can win points
+    maxSpeed: 2.8,              // Athletic, but won't teleport across the table
+    lerpRate: 9.5,              // Sharp tracking
+    reachLimitX: 0.65,          // Strong coverage, but deep corner smashes score cleanly!
+    swingAggression: 0.22,      // Controlled attacks rather than constant overwhelming bullets
+    returnPlacementBias: 0.30   // Varied ITTF placement creating enjoyable, rewarding rallies
   }
 };
 
@@ -92,11 +94,11 @@ export class TableTennisAI {
    */
   public selectServePosition(): number {
     if (this.difficulty === 'easy') {
-      // Casual bot: serves from varied comfortable stances across table with readable targets (left, right, center)
-      const stances = [-0.30, 0.30, -0.16, 0.16, 0.0];
+      // Casual bot: serves from comfortable stances across table with safe, central targets
+      const stances = [-0.22, 0.22, -0.10, 0.10, 0.0];
       this.chosenServeX = stances[this.serveCount % stances.length];
       this.serveCount++;
-      const targets = [-0.32, 0.32, -0.18, 0.18, 0.0];
+      const targets = [-0.18, 0.18, -0.08, 0.08, 0.0];
       this.chosenServeTargetX = targets[Math.floor(Math.random() * targets.length)];
       return this.chosenServeX;
     }
@@ -157,7 +159,9 @@ export class TableTennisAI {
     this.lastBallVelZ = ball.vel.z;
 
     if (ballComingTowardsAI) {
-      this.reactionTimer -= dt;
+      // Once the ball bounces on the AI court, visual & audio cues accelerate reading of short shots
+      const bounceBoost = (ball.bounceCountCurrentSide >= 1 && ball.lastBounceSide === 'player2') ? 1.6 : 1.0;
+      this.reactionTimer -= dt * bounceBoost;
       if (this.reactionTimer <= 0) {
         this.isReacting = true;
       }
@@ -166,17 +170,19 @@ export class TableTennisAI {
     }
 
     if (this.isReacting && ballComingTowardsAI) {
-      // Predict arrival at AI paddle baseline with aerodynamics and table bounce
-      const predicted = this.predictBallAtPlane(ball, OPPONENT_PADDLE_Z);
+      // 3D Interception with aerodynamic curve simulation and short-ball stepping
+      const prediction = this.predictBallIntercept(ball);
       this.currentTarget = {
-        x: predicted.x + this.targetOffset.x,
-        y: predicted.y + this.targetOffset.y,
-        z: OPPONENT_PADDLE_Z
+        x: prediction.pos.x + this.targetOffset.x,
+        y: prediction.pos.y + this.targetOffset.y,
+        z: prediction.pos.z
       };
 
-      // Forward swing surge when ball is in striking window
-      if (ball.pos.z < OPPONENT_PADDLE_Z + 0.38 && ball.pos.z > OPPONENT_PADDLE_Z - 0.05) {
-        this.currentTarget.z = OPPONENT_PADDLE_Z + 0.14 * this.config.swingAggression;
+      // Forward swing surge when ball enters striking zone
+      const strikeWindowZ = this.currentTarget.z;
+      if (ball.pos.z < strikeWindowZ + 0.38 && ball.pos.z > strikeWindowZ - 0.08) {
+        const surge = 0.08 * (this.config.swingAggression > 0 ? this.config.swingAggression : 0.8);
+        this.currentTarget.z += surge;
       }
     } else if (ball.isServe && ball.lastHitter === 'player2') {
       if (ball.serveState === 'tossed') {
@@ -264,17 +270,15 @@ export class TableTennisAI {
   }
 
   /**
-   * Fast forward trajectory simulation accounting for gravity, drag, and table bounce.
+   * Fast forward trajectory simulation accounting for gravity, drag, Magnus curve, and table bounce.
+   * Accurately determines the optimal 3D strike location (x, y, z).
+   * For deep shots, intercepts around OPPONENT_PADDLE_Z (-1.84m).
+   * For short shots / drop shots that bounce shallow on the table and won't reach baseline before double-bouncing,
+   * steps forward towards the table (up to z = -1.20m) with guaranteed table clearance so the bot returns short balls cleanly.
    */
-  private predictBallAtPlane(ball: BallState, targetZ: number): Vector3D {
+  public predictBallIntercept(ball: BallState): { pos: Vector3D; isShort: boolean } {
     if (Math.abs(ball.vel.z) < 0.1) {
-      return { x: ball.pos.x, y: ball.pos.y, z: targetZ };
-    }
-
-    // Time estimate to reach target plane
-    const tEstimate = (targetZ - ball.pos.z) / ball.vel.z;
-    if (tEstimate <= 0 || tEstimate > 2.5) {
-      return { x: ball.pos.x, y: ball.pos.y, z: targetZ };
+      return { pos: { x: ball.pos.x, y: ball.pos.y, z: OPPONENT_PADDLE_Z }, isShort: false };
     }
 
     let simX = ball.pos.x;
@@ -286,19 +290,20 @@ export class TableTennisAI {
     let simSpinX = ball.spin ? ball.spin.x : 0;
     let simSpinY = ball.spin ? ball.spin.y : 0;
 
-    const simDt = 0.015;
-    const maxSteps = Math.min(160, Math.ceil(tEstimate / simDt) + 10);
+    const simDt = 0.012;
+    const maxSteps = 160;
+
+    let bouncesOnAI = 0;
+    let apexAfterBounce: { x: number; y: number; z: number } | null = null;
+    let prevSimVy = simVy;
+    let reachedBaseline = false;
+    let baselinePoint: { x: number; y: number; z: number } | null = null;
 
     for (let step = 0; step < maxSteps; step++) {
-      if (simZ <= targetZ) {
-        break;
-      }
-
       // Physics integration step
       const spd = Math.hypot(simVx, simVy, simVz);
       const drag = AIR_DRAG * spd;
 
-      // 3D Aerodynamic Magnus curve force
       let fMagnusX = 0;
       let fMagnusY = 0;
       if (simSpinY !== 0 || simSpinX !== 0) {
@@ -316,21 +321,84 @@ export class TableTennisAI {
       simY += simVy * simDt;
       simZ += simVz * simDt;
 
+      // Track post-bounce apex on AI side
+      if (bouncesOnAI >= 1 && prevSimVy > 0 && simVy <= 0 && !apexAfterBounce) {
+        apexAfterBounce = { x: simX, y: simY, z: simZ };
+      }
+      prevSimVy = simVy;
+
       // Table bounce simulation
       if (simY <= TABLE_HEIGHT + BALL_RADIUS) {
-        simY = TABLE_HEIGHT + BALL_RADIUS;
-        simVy = Math.abs(simVy) * TABLE_RESTITUTION;
-        const flightDirZ = simVz > 0 ? 1 : -1;
-        simVx = simVx * 0.95 - flightDirZ * simSpinY * SPIN_BOUNCE_FRICTION;
-        simSpinX *= SPIN_BOUNCE_DECAY;
-        simSpinY *= SPIN_BOUNCE_DECAY;
+        if (simZ >= -TABLE_LENGTH / 2 && simZ <= 0 && Math.abs(simX) <= TABLE_WIDTH / 2) {
+          bouncesOnAI++;
+          simY = TABLE_HEIGHT + BALL_RADIUS;
+          simVy = Math.abs(simVy) * TABLE_RESTITUTION;
+          const flightDirZ = simVz > 0 ? 1 : -1;
+          simVx = simVx * 0.95 - flightDirZ * simSpinY * SPIN_BOUNCE_FRICTION;
+          simSpinX *= SPIN_BOUNCE_DECAY;
+          simSpinY *= SPIN_BOUNCE_DECAY;
+
+          if (bouncesOnAI >= 2) {
+            // Ball would double bounce! Intercept must happen before this second bounce!
+            break;
+          }
+        } else {
+          // Off table or floor
+          break;
+        }
+      }
+
+      // Check if deep ball reached baseline area
+      if (simZ <= OPPONENT_PADDLE_Z) {
+        reachedBaseline = true;
+        baselinePoint = { x: simX, y: simY, z: OPPONENT_PADDLE_Z };
+        break;
       }
     }
 
+    if (reachedBaseline && baselinePoint) {
+      return {
+        pos: {
+          x: Math.max(PADDLE_MIN_X, Math.min(PADDLE_MAX_X, baselinePoint.x)),
+          y: Math.max(TABLE_HEIGHT + 0.08, Math.min(PADDLE_MAX_Y, baselinePoint.y)),
+          z: OPPONENT_PADDLE_Z
+        },
+        isShort: false
+      };
+    }
+
+    // Ball will not reach OPPONENT_PADDLE_Z before double-bouncing (SHORT ball / drop shot):
+    // Move forward towards the table to intercept the ball at its apex or comfortable striking height
+    let strikeZ = OPPONENT_PADDLE_Z;
+    let strikeX = simX;
+    let strikeY = TABLE_HEIGHT + 0.16;
+
+    if (apexAfterBounce) {
+      strikeZ = Math.max(-1.48, Math.min(-1.18, apexAfterBounce.z));
+      strikeX = apexAfterBounce.x;
+      strikeY = Math.max(TABLE_HEIGHT + 0.12, Math.min(PADDLE_MAX_Y, apexAfterBounce.y));
+    } else {
+      strikeZ = Math.max(-1.50, Math.min(-1.22, simZ));
+      strikeX = simX;
+      strikeY = Math.max(TABLE_HEIGHT + 0.12, Math.min(PADDLE_MAX_Y, simY));
+    }
+
+    const safeMinY = getMinPaddleY(strikeX, strikeZ);
     return {
-      x: Math.max(PADDLE_MIN_X, Math.min(PADDLE_MAX_X, simX)),
-      y: Math.max(TABLE_HEIGHT + 0.08, Math.min(PADDLE_MAX_Y, simY)),
-      z: targetZ
+      pos: {
+        x: Math.max(PADDLE_MIN_X, Math.min(PADDLE_MAX_X, strikeX)),
+        y: Math.max(safeMinY, Math.min(PADDLE_MAX_Y, strikeY)),
+        z: strikeZ
+      },
+      isShort: true
     };
+  }
+
+  /**
+   * Fast forward trajectory simulation accounting for gravity, drag, and table bounce (legacy helper).
+   */
+  public predictBallAtPlane(ball: BallState, targetZ: number): Vector3D {
+    const intercept = this.predictBallIntercept(ball);
+    return intercept.pos;
   }
 }

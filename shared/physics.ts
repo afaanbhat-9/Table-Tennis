@@ -32,6 +32,7 @@ import {
   PADDLE_FRICTION
 } from './constants.js';
 import {
+  AIDifficulty,
   BallState,
   PaddleState,
   PlayerSide,
@@ -52,6 +53,11 @@ export class PhysicsSimulation {
   public ball: BallState;
   public paddle1: PaddleState;
   public paddle2: PaddleState;
+  public aiDifficulty: AIDifficulty = 'medium';
+
+  public setAIDifficulty(difficulty: AIDifficulty): void {
+    this.aiDifficulty = difficulty;
+  }
 
   // Contact debouncing cooldowns (seconds)
   private p1Cooldown: number = 0;
@@ -826,18 +832,35 @@ export class PhysicsSimulation {
       const forwardStroke = Math.max(0, dirZ * paddle.vel.z);
       const lateralStroke = Math.hypot(paddle.vel.x, paddle.vel.y);
       const strokeIntensity = forwardStroke + lateralStroke * 0.25;
-      const isSmash = strokeIntensity >= 3.5 || paddle.isSwinging;
+      const isSmash = strokeIntensity >= 2.5 || paddle.isSwinging;
 
       let forwardSpeed: number;
-      if (strokeIntensity < 0.35 && !paddle.isSwinging) {
-        // Soft block / passive return: controlled, gentle pace
-        forwardSpeed = 4.68;
-      } else if (isSmash) {
-        // Fast drive / smash: capped at 8.15 m/s
-        forwardSpeed = Math.min(8.15, 5.50 + strokeIntensity * 0.40);
+      if (isP1) {
+        const incomingZSpeed = Math.abs(b.vel.z);
+        if (strokeIntensity < 0.60 && !paddle.isSwinging) {
+          // Soft block / passive return: controlled, gentle short pace (~3.2 to 4.2 m/s based on incoming ball)
+          forwardSpeed = Math.min(4.30, Math.max(3.20, incomingZSpeed * 0.42 + 1.50 + strokeIntensity * 0.85));
+        } else if (isSmash) {
+          // Fast drive / smash: capped at 8.15 m/s
+          forwardSpeed = Math.min(8.15, 5.50 + strokeIntensity * 0.40);
+        } else {
+          // Standard rally: readable, controlled pace (~4.3 to 5.2 m/s)
+          forwardSpeed = 4.30 + strokeIntensity * 0.35;
+        }
       } else {
-        // Standard rally: relaxed, readable pace (~4.8 to 5.4 m/s)
-        forwardSpeed = 4.80 + strokeIntensity * 0.28;
+        // Player 2 (AI): Humanized, enjoyable, beatable rally pace!
+        // AI does NOT launch 8 m/s bullets. Standard returns are readable and calibrated by difficulty.
+        const isFloater = b.pos.y > TABLE_HEIGHT + 0.35;
+        if (this.aiDifficulty === 'easy') {
+          // Casual: gentle, high floaty returns giving player plenty of time (~3.4 to 3.7 m/s)
+          forwardSpeed = isFloater ? 3.70 : (3.40 + Math.min(0.20, strokeIntensity * 0.08));
+        } else if (this.aiDifficulty === 'medium') {
+          // Pro: balanced intermediate rally pace (~4.2 to 4.6 m/s)
+          forwardSpeed = isFloater && strokeIntensity > 2.5 ? 4.70 : (4.20 + Math.min(0.30, strokeIntensity * 0.10));
+        } else {
+          // Master: crisp tournament pace, but fair and readable (~4.6 to 5.2 m/s)
+          forwardSpeed = isFloater && strokeIntensity > 2.5 ? 5.20 : (4.60 + Math.min(0.35, strokeIntensity * 0.12));
+        }
       }
 
       let newVz: number;
@@ -848,16 +871,32 @@ export class PhysicsSimulation {
       }
 
       // 1. Swipe Spin & Curving Shot physics (mimicking real-world table tennis):
-      // Brushing laterally across the ball generates a clear, authentic curving arc (~12-16cm bend).
+      // Brushing laterally across the ball generates an authentic, clearly visible curving arc (~15-35cm bend).
       // Brushing to the right curves to the right; brushing to the left curves to the left.
-      const sideSpinDir = isP1 ? 1 : -1;
-      const lateralBrush = paddle.vel.x;
-      const offCenterBrush = (dx / PADDLE_RADIUS) * 12.0;
-      const swipeSidespin = sideSpinDir * (lateralBrush * 18.0 + offCenterBrush);
-      const spinY = Math.max(-110.0, Math.min(110.0, swipeSidespin));
+      let spinY: number;
+      if (isP1) {
+        const lateralBrush = paddle.vel.x;
+        const offCenterBrush = (dx / PADDLE_RADIUS) * 24.0;
+        // Highly responsive lateral brushing: a deliberate swipe imparts 40-120 rad/s sidespin
+        const swipeSidespin = lateralBrush * 50.0 + offCenterBrush;
+        spinY = Math.max(-140.0, Math.min(140.0, swipeSidespin));
+      } else {
+        // Player 2 (AI): Sidespin depends strictly on difficulty tier
+        if (this.aiDifficulty === 'easy') {
+          // Casual AI: Zero sidespin - never curves balls away to extreme edges
+          spinY = 0;
+        } else if (this.aiDifficulty === 'medium') {
+          // Pro AI: Moderate sidespin proportional to stroke
+          spinY = Math.max(-65.0, Math.min(65.0, -paddle.vel.x * 25.0));
+        } else {
+          // Master AI: Tournament sidespin & curve shots
+          const offCenterBrush = (dx / PADDLE_RADIUS) * 20.0;
+          spinY = Math.max(-110.0, Math.min(110.0, -paddle.vel.x * 35.0 - offCenterBrush));
+        }
+      }
 
       // Natural topspin dip keeps curving shots cleanly on the table
-      const curveTopspin = Math.abs(spinY) * 0.28;
+      const curveTopspin = Math.abs(spinY) * 0.22;
       const swipeTopspin = 24.0 + Math.max(-12.0, paddle.vel.y * 18.0) + curveTopspin;
       const spinX = Math.max(-MAX_SPIN, Math.min(MAX_SPIN, swipeTopspin));
 
@@ -868,63 +907,134 @@ export class PhysicsSimulation {
       };
 
       // 2. Dynamic Net Clearance & Landing Arc:
+      let targetLandingZ: number;
+      if (isP1) {
+        if (strokeIntensity < 0.60 && !paddle.isSwinging) {
+          // Gentle touch / soft block: lands mid-court (-0.45 to -0.60m) so it does NOT fly far!
+          targetLandingZ = -0.48 - strokeIntensity * 0.20;
+        } else if (isSmash) {
+          targetLandingZ = -0.92;
+        } else {
+          targetLandingZ = -0.72;
+        }
+      } else {
+        targetLandingZ = 0.88;
+      }
+
       const distToNet = Math.abs(b.pos.z);
       const avgForwardSpeed = forwardSpeed * 0.90; // account for aerodynamic drag deceleration
-      const timeToNet = Math.max(0.10, Math.min(0.50, distToNet / (avgForwardSpeed || 1)));
-      const effectiveG = GRAVITY + 2.0 + Math.max(0, spinX * MAGNUS_COEFFICIENT * forwardSpeed * 0.5);
-      const targetNetHeight = NET_Y_TOP + 0.038; // 3.8cm clearance above net tape
+      const timeToNet = Math.max(0.10, Math.min(0.55, distToNet / (avgForwardSpeed || 1)));
+      const effectiveG = GRAVITY + 1.2 + Math.max(0, spinX * MAGNUS_COEFFICIENT * forwardSpeed);
+      const targetNetHeight = NET_Y_TOP + 0.040; // 4.0cm clearance above net tape
       const minVyToClear = (targetNetHeight - b.pos.y + 0.5 * effectiveG * timeToNet * timeToNet) / timeToNet;
 
-      // Opponent landing target Z
-      const targetLandingZ = isP1 ? -0.88 : 0.88;
       const distToLanding = Math.abs(b.pos.z - targetLandingZ);
-      const timeToLand = Math.max(0.25, Math.min(0.65, distToLanding / (avgForwardSpeed || 1)));
+      const timeToLand = Math.max(0.20, Math.min(0.65, distToLanding / (avgForwardSpeed || 1)));
       const landingSurfaceY = TABLE_HEIGHT + BALL_RADIUS;
       const targetVyForLanding = (landingSurfaceY - b.pos.y + 0.5 * effectiveG * timeToLand * timeToLand) / timeToLand;
 
       // Launch vertical velocity combines landing arc with bat tilt and stroke:
-      const tiltInfluence = normal.y * 3.2;
-      const strokeInfluence = Math.max(-0.4, Math.min(1.2, paddle.vel.y * 0.30));
+      const tiltInfluence = normal.y * 2.2;
+      const strokeInfluence = Math.max(-0.3, Math.min(0.8, paddle.vel.y * 0.25));
       let newVy = targetVyForLanding + tiltInfluence + strokeInfluence;
 
-      if (isSmash || forwardSpeed >= 7.2) {
-        newVy = Math.max(minVyToClear, Math.min(1.45, newVy));
+      if (isSmash || forwardSpeed >= 7.0) {
+        newVy = Math.max(minVyToClear, Math.min(1.40, newVy));
+      } else if (isP1 && strokeIntensity < 0.60 && !paddle.isSwinging) {
+        // Small gentle stroke: crisp low clearance without ballooning up into a giant lob
+        newVy = Math.max(minVyToClear + 0.02, minVyToClear + 0.12);
       } else {
-        const clampedMinVy = b.pos.y > (NET_Y_TOP + 0.12) ? Math.max(0.70, minVyToClear) : Math.max(1.60, minVyToClear);
-        newVy = Math.max(clampedMinVy, Math.min(2.55, Math.max(clampedMinVy, newVy)));
+        newVy = Math.max(minVyToClear + 0.04, Math.min(2.10, Math.max(minVyToClear + 0.04, targetVyForLanding)));
       }
 
-      // 3. Magnus Aerodynamic Lateral Curve Compensation:
-      // F_magnusX = -MAGNUS_COEFFICIENT * (b.spin.y * b.vel.z)
-      // For P1 (vel.z < 0): a_magnusX = MAGNUS_COEFFICIENT * spinY * forwardSpeed
-      // For P2 (vel.z > 0): a_magnusX = -MAGNUS_COEFFICIENT * spinY * forwardSpeed
-      const effectiveCurveAccel = -dirZ * MAGNUS_COEFFICIENT * spinY * forwardSpeed;
-      const deltaXCurve = 0.5 * effectiveCurveAccel * (timeToLand * timeToLand);
+      // 3. Initial Vx & Curving Shot physics:
+      // In real table tennis, brushing right imparts a slight initial rightward impulse,
+      // and in flight the Magnus sidespin curves the ball continuously further to the right!
+      let newVx: number;
+      if (isP1) {
+        const strokeAim = (dx / PADDLE_RADIUS) * 0.14;
+        const centering = b.pos.x * 0.20;
+        const brushImpulse = paddle.vel.x * 0.16;
+        newVx = (centering + strokeAim) / timeToLand + brushImpulse;
+        newVx = Math.max(-1.50, Math.min(1.50, newVx));
+      } else {
+        // Player 2 (AI) lateral return placement:
+        if (this.aiDifficulty === 'easy') {
+          // Casual AI: Returns safely & comfortably towards center court (never extreme left/right)
+          // Gentle centering steering: keeps ball within +-15cm of center
+          const centering = -b.pos.x * 0.35;
+          newVx = centering / timeToLand;
+          newVx = Math.max(-0.40, Math.min(0.40, newVx));
+        } else if (this.aiDifficulty === 'medium') {
+          // Pro AI: Balanced placement following paddle stroke
+          const strokeAim = (dx / PADDLE_RADIUS) * 0.12;
+          const brushImpulse = paddle.vel.x * 0.14;
+          const centering = -b.pos.x * 0.18;
+          newVx = (centering + strokeAim) / timeToLand + brushImpulse;
+          newVx = Math.max(-0.95, Math.min(0.95, newVx));
+        } else {
+          // Master AI: Sharp tactical angles to corners & sidelines
+          const strokeAim = (dx / PADDLE_RADIUS) * 0.16;
+          const brushImpulse = paddle.vel.x * 0.16;
+          const targetSide = b.pos.x > 0 ? -1 : 1;
+          const tacticalAngle = targetSide * (0.35 + Math.random() * 0.22);
+          newVx = (tacticalAngle - b.pos.x + strokeAim) / timeToLand + brushImpulse;
+          newVx = Math.max(-1.40, Math.min(1.40, newVx));
+        }
 
-      // 4. Opponent Court Landing Target (mimicking real-world table tennis curving shots):
-      // Visible, natural curving arc that bends in flight and lands cleanly on table
-      const curveSideBias = (isP1 ? 1 : -1) * Math.sign(spinY) * Math.min(0.24, Math.abs(spinY) * 0.0024);
-      const strokeAim = (dx / PADDLE_RADIUS) * 0.12;
-      const centering = b.pos.x * 0.25;
-      let desiredLandingX = Math.max(-0.52, Math.min(0.52, centering + curveSideBias + strokeAim));
+        // AI realism & beatability: authentic unforced errors allow the player to win points!
+        const incomingSpeed = Math.hypot(b.vel.x, b.vel.y, b.vel.z);
+        const incomingSpinY = b.spin ? Math.abs(b.spin.y) : 0;
 
-      if (!isP1) {
-        // AI return realism: off-center contact when stretched creates authentic unforced errors
-        const offCenterDist = Math.max(0, radialDist - 0.05);
-        if (offCenterDist > 0.025) {
-          const errorSign = (dx !== 0 ? Math.sign(dx) : (Math.random() > 0.5 ? 1 : -1));
-          desiredLandingX += errorSign * offCenterDist * 2.2;
-          // When severely stretched, occasional net clip or long ball
-          if (offCenterDist > 0.055 && Math.random() < 0.28) {
-            newVy += (Math.random() > 0.5 ? 0.30 : -0.42);
+        const isFastBall = incomingSpeed > (this.aiDifficulty === 'easy' ? 4.9 : (this.aiDifficulty === 'medium' ? 5.8 : 6.2));
+        const isCurvingBall = incomingSpinY > (this.aiDifficulty === 'easy' ? 20 : (this.aiDifficulty === 'medium' ? 32 : 40));
+        const isStretched = Math.abs(paddle.pos.x) > (this.aiDifficulty === 'easy' ? 0.28 : (this.aiDifficulty === 'medium' ? 0.38 : 0.46)) || radialDist > 0.055;
+        const isOffCenter = radialDist > 0.07;
+        const underPressure = isFastBall || isCurvingBall || isStretched || isOffCenter;
+
+        let errorChance: number;
+        if (this.aiDifficulty === 'easy') {
+          // Casual AI: consistent rallies, failing only once in a while (~8% routine, ~18% under pressure)
+          errorChance = underPressure ? 0.18 : 0.08;
+        } else if (this.aiDifficulty === 'medium') {
+          // Pro AI: intermediate consistency (~5% routine, ~12% under pressure)
+          errorChance = underPressure ? 0.12 : 0.05;
+        } else {
+          // Master AI: tournament consistency (~2% routine, ~7% under pressure)
+          errorChance = underPressure ? 0.07 : 0.02;
+        }
+
+        if (Math.random() < errorChance) {
+          const errorType = Math.random();
+          if (this.aiDifficulty === 'easy') {
+            // Net mistake percentage decreased drastically to ~15% (rare close net clips);
+            // Most errors are gentle balls landing just long (~57%) or wide (~28%):
+            if (errorType < 0.15) {
+              // 1. Rare close net tape clip
+              newVy = minVyToClear - 0.035 - Math.random() * 0.035;
+            } else if (errorType < 0.72) {
+              // 2. Hit slightly long past player baseline
+              newVy += 0.20 + Math.random() * 0.16;
+              forwardSpeed += 0.40;
+            } else {
+              // 3. Gentle wide miss just over the sideline
+              const errorSide = (dx !== 0 ? Math.sign(dx) : (Math.random() > 0.5 ? 1 : -1));
+              newVx = errorSide * (0.65 + Math.random() * 0.12);
+            }
+          } else {
+            // Pro & Master AI errors under pressure:
+            if (errorType < 0.15) {
+              newVy = minVyToClear - 0.04 - Math.random() * 0.04;
+            } else if (errorType < 0.65) {
+              newVy += 0.26 + Math.random() * 0.22;
+              forwardSpeed += 0.55;
+            } else {
+              const errorSide = (dx !== 0 ? Math.sign(dx) : (Math.random() > 0.5 ? 1 : -1));
+              newVx = errorSide * (1.15 + Math.random() * 0.25);
+            }
           }
         }
       }
-
-      // Initial Vx: Compensates for aerodynamic curve displacement so the natural curve lands cleanly on the table!
-      let newVx = (desiredLandingX - b.pos.x - deltaXCurve) / timeToLand;
-      newVx = Math.max(-1.8, Math.min(1.8, newVx));
-      newVx = Math.max(-1.45, Math.min(1.45, newVx));
 
       b.vel.x = Math.max(-2.2, Math.min(2.2, newVx));
       b.vel.y = newVy;
