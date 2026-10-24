@@ -77,6 +77,11 @@ export class GameRoom {
     this.phase = 'countdown';
     this.countdownTimer = 3;
     this.physics.prepareServe(this.rules.serve.server);
+    this.startGameLoops();
+
+    // Emit 3 immediately so both players see the countdown start without a 1-second blank lag
+    this.io.to(this.code).emit('game:countdown', 3);
+    this.countdownTimer = 2;
 
     const countdownInterval = setInterval(() => {
       this.io.to(this.code).emit('game:countdown', this.countdownTimer);
@@ -85,7 +90,6 @@ export class GameRoom {
       if (this.countdownTimer < 0) {
         clearInterval(countdownInterval);
         this.beginServe();
-        this.startGameLoops();
       }
     }, 1000);
   }

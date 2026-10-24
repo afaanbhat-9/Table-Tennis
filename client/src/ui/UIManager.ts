@@ -278,6 +278,8 @@ export class UIManager {
 
     // Start Party Match (Host only)
     this.btnLobbyStart.addEventListener('click', () => {
+      this.btnLobbyStart.innerText = 'Starting Match...';
+      this.btnLobbyStart.disabled = true;
       this.handlers.onStartPartyMatch();
     });
 
@@ -471,9 +473,16 @@ export class UIManager {
 
     if (isHost) {
       this.btnLobbyStart.style.display = 'flex';
-      const canStart = p1?.isReady && p2?.isReady;
+      const hasGuest = Boolean(p2);
+      const canStart = hasGuest && (p1?.isReady ?? true) && (p2?.isReady ?? true);
       this.btnLobbyStart.disabled = !canStart;
-      this.btnLobbyStart.innerText = canStart ? 'Start Match!' : 'Waiting for both players to be ready';
+      if (!hasGuest) {
+        this.btnLobbyStart.innerText = 'Waiting for friend to join...';
+      } else if (!canStart) {
+        this.btnLobbyStart.innerText = 'Waiting for both players to be ready';
+      } else {
+        this.btnLobbyStart.innerText = 'Start Match!';
+      }
     } else {
       this.btnLobbyStart.style.display = 'none';
     }
@@ -489,7 +498,6 @@ export class UIManager {
 
   public showHUD(mode: 'singleplayer' | 'multiplayer', p1Name: string = 'YOU', p2Name: string = 'CPU'): void {
     this.hideAllModals();
-    this.hideCountdown();
     document.body.classList.add('in-game');
     this.hudOverlay.style.display = 'block';
     this.hudNameP1.innerText = p1Name;

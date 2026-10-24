@@ -3,12 +3,13 @@ import { TableMesh } from './TableMesh.js';
 import { GymnasiumMesh } from './GymnasiumMesh.js';
 import { PaddleMesh } from './PaddleMesh.js';
 import { BallMesh } from './BallMesh.js';
-import { BallState, PaddleState, Vector3D } from '../../../shared/types.js';
+import { BallState, PaddleState, PlayerSide, Vector3D } from '../../../shared/types.js';
 
 export class SceneManager {
   public scene: THREE.Scene;
   public camera: THREE.PerspectiveCamera;
   public renderer: THREE.WebGLRenderer;
+  public playerSide: PlayerSide = 'player1';
 
   public table: TableMesh;
   public gym: GymnasiumMesh;
@@ -71,6 +72,11 @@ export class SceneManager {
     this.setupResize();
   }
 
+  public setPlayerSide(side: PlayerSide): void {
+    this.playerSide = side;
+    this.resetCamera();
+  }
+
   public resetCamera(): void {
     const width = this.container.clientWidth || window.innerWidth || 1280;
     const height = this.container.clientHeight || window.innerHeight || 720;
@@ -81,16 +87,18 @@ export class SceneManager {
   }
 
   private applyCameraFraming(aspect: number): void {
+    const isP2 = this.playerSide === 'player2';
+    const zSign = isP2 ? -1 : 1;
     if (aspect < 1.0) {
       // Portrait / narrow mobile view: step back and elevate so the entire table and sidelines fit
       const factor = Math.min(1.0, Math.max(0, (1.0 - aspect) / 0.55));
-      this.camera.position.set(0, 1.51 + factor * 0.45, 3.25 + factor * 1.35);
-      this.camera.lookAt(0, 0.75 - factor * 0.05, -0.22);
+      this.camera.position.set(0, 1.51 + factor * 0.45, zSign * (3.25 + factor * 1.35));
+      this.camera.lookAt(0, 0.75 - factor * 0.05, -zSign * 0.22);
       this.camera.fov = Math.min(72, 46 / Math.pow(aspect, 0.48));
     } else {
       // Landscape / desktop view: balanced comfortable distance
-      this.camera.position.set(0, 1.51, 3.25);
-      this.camera.lookAt(0, 0.75, -0.22);
+      this.camera.position.set(0, 1.51, zSign * 3.25);
+      this.camera.lookAt(0, 0.75, -zSign * 0.22);
       this.camera.fov = 45;
     }
   }

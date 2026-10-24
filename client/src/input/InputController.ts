@@ -5,11 +5,12 @@ import {
   PADDLE_MIN_Y,
   PADDLE_MAX_Y,
   PLAYER_PADDLE_Z,
+  OPPONENT_PADDLE_Z,
   TABLE_HEIGHT,
   NET_Y_TOP,
   getMinPaddleY
 } from '../../../shared/constants.js';
-import { PaddleState, PlayerInput, Vector3D } from '../../../shared/types.js';
+import { PaddleState, PlayerInput, PlayerSide, Vector3D } from '../../../shared/types.js';
 import { SwingState } from '../../../shared/swing.js';
 
 interface PointerSample {
@@ -21,6 +22,16 @@ interface PointerSample {
 export class InputController {
   private domElement: HTMLElement;
   private camera: THREE.PerspectiveCamera;
+  public playerSide: PlayerSide = 'player1';
+
+  public setPlayerSide(side: PlayerSide): void {
+    this.playerSide = side;
+    const baseZ = side === 'player2' ? OPPONENT_PADDLE_Z : PLAYER_PADDLE_Z;
+    this.targetPos.z = baseZ;
+    this.currentPaddle.pos.z = baseZ;
+    this.currentPaddle.rot.x = side === 'player2' ? 0.1 : -0.1;
+    this.hasReceivedInitialPointer = false;
+  }
 
   // Permitted paddle positioning
   public targetPos: Vector3D = {
@@ -176,10 +187,13 @@ export class InputController {
     this.raycaster.setFromCamera(new THREE.Vector2(ndcX, ndcY), this.camera);
 
     // 1. Stable Striking Depth (Z):
-    // Table baseline is at Z = 1.37m. The paddle stays at a stable, natural striking depth
-    // right behind the baseline (Z ~ 1.50m - 1.74m) so incoming balls naturally intercept cleanly!
+    // Table baseline is at Z = +/-1.37m. The paddle stays at a stable, natural striking depth
+    // right behind the baseline so incoming balls naturally intercept cleanly!
+    const isP2 = this.playerSide === 'player2';
     const forwardReach = Math.max(-0.06, Math.min(0.24, (ndcY + 0.10) * 0.35));
-    let targetZ = Math.max(1.48, Math.min(1.78, 1.70 - forwardReach));
+    let targetZ = isP2
+      ? Math.max(-1.78, Math.min(-1.48, -1.70 + forwardReach))
+      : Math.max(1.48, Math.min(1.78, 1.70 - forwardReach));
 
     const planeAtZ = new THREE.Plane(new THREE.Vector3(0, 0, 1), -targetZ);
     const intersectionPoint = new THREE.Vector3();
@@ -216,10 +230,12 @@ export class InputController {
       return;
     }
 
+    const isP2 = this.playerSide === 'player2';
+
     if (this.pointerHistory.length < 2) {
       if (isClickTrigger) {
         // Direct click trigger with default forward drive
-        this.triggerSwing({ x: 0, y: 0.2, z: -1 }, 0.7);
+        this.triggerSwing({ x: 0, y: 0.2, z: isP2 ? 1 : -1 }, 0.7);
       }
       return;
     }
@@ -239,13 +255,9 @@ export class InputController {
 
     if (isFlick || isClickTrigger) {
       // Calculate swing direction in 3D:
-      // dx > 0: right cross-court / slice curve
-      // dx < 0: left cross-court / inside-out curve
-      // dy < 0 (moving up on screen): topspin lift (+Y, -Z)
-      // dy > 0 (moving down on screen): flat/chop smash (-Y, -Z)
-      const normDirX = (dx / (distPx || 1)) * 1.0;
+      const normDirX = (dx / (distPx || 1)) * (isP2 ? -1.0 : 1.0);
       const normDirY = Math.max(-0.4, (-dy / (distPx || 1)) * 0.6);
-      const dirZ = -1.0;
+      const dirZ = isP2 ? 1.0 : -1.0;
 
       const strength = Math.min(1.0, Math.max(0.4, speedPx / 1800));
       this.triggerSwing({ x: normDirX, y: normDirY, z: dirZ }, strength);
@@ -315,19 +327,20 @@ export class InputController {
 
     // 5. Paddle 3D Orientation (tilt)
     // Ergonomic authentic orientation:
-    // - Low paddle near table opens slightly (+X tilt) to naturally lift balls over net
-    // - High paddle above net closes slightly (-X tilt) for topspin drive
+    // - Low paddle near table opens slightly to naturally lift balls over net
+    // - High paddle above net closes slightly for topspin drive
     // - Forward swing gesture applies topspin/flat drive tilt
+    const isP2 = this.playerSide === 'player2';
     const heightFromNet = cur.y - NET_Y_TOP;
-    let targetTiltX = -Math.max(-0.06, Math.min(0.12, heightFromNet * 0.35));
+    let targetTiltX = (isP2 ? 1 : -1) * Math.max(-0.06, Math.min(0.12, heightFromNet * 0.35));
 
     if (this.swingState.phase === 'forward') {
       const swingY = this.swingState.direction.y;
-      targetTiltX -= swingY * 0.10 * this.swingState.strength;
+      targetTiltX += (isP2 ? 1 : -1) * swingY * 0.10 * this.swingState.strength;
     }
 
-    const targetTiltY = (cur.x / 1.0) * 0.22;
-    const targetTiltZ = -0.20 - (cur.x / 1.0) * 0.30;
+    const targetTiltY = (cur.x / 1.0) * (isP2 ? -0.22 : 0.22);
+    const targetTiltZ = (isP2 ? 0.20 : -0.20) + (cur.x / 1.0) * (isP2 ? 0.30 : -0.30);
 
     const rotSmoothing = 1.0 - Math.exp(-24 * dt);
     this.currentPaddle.rot.x += (targetTiltX - this.currentPaddle.rot.x) * rotSmoothing;

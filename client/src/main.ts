@@ -40,6 +40,7 @@ class GameApp {
   private countdownInterval: any = null;
 
   private currentMode: GameMode = 'none';
+  private isMultiplayerMatchActive: boolean = false;
   private isPaused: boolean = false;
   private lastTime: number = performance.now();
   private physicsAccumulator: number = 0;
@@ -126,11 +127,16 @@ class GameApp {
 
   private setupNetworkCallbacks(): void {
     this.netClient.onPartyUpdated = (room: RoomState) => {
+      if (room.phase === 'countdown' || room.phase === 'playing') {
+        this.startMultiplayerMatch(room);
+        return;
+      }
       this.uiManager.showPartyLobby(room, this.isHost);
       this.uiManager.updateLobbySlots(room, this.isHost);
     };
 
     this.netClient.onGameCountdown = (count: number) => {
+      this.startMultiplayerMatch(this.netClient.roomState || undefined);
       if (count > 0) {
         this.uiManager.showCountdown(count);
         this.soundManager.playCountdown(count);
@@ -141,13 +147,7 @@ class GameApp {
     };
 
     this.netClient.onGameSnapshot = (snap: GameSnapshot) => {
-      if (this.currentMode !== 'multiplayer') {
-        this.currentMode = 'multiplayer';
-        const p1Name = this.netClient.roomState?.players.player1?.name || 'Player 1';
-        const p2Name = this.netClient.roomState?.players.player2?.name || 'Player 2';
-        this.uiManager.showHUD('multiplayer', p1Name, p2Name);
-        this.uiManager.showControlHint(4500);
-      }
+      this.startMultiplayerMatch(this.netClient.roomState || undefined);
 
       this.uiManager.updateScoreboard(snap.score, snap.serve.server);
       this.uiManager.updatePing(this.netClient.pingMs);
@@ -218,6 +218,9 @@ class GameApp {
     }
 
     this.currentMode = 'singleplayer';
+    this.isMultiplayerMatchActive = false;
+    this.sceneManager.setPlayerSide('player1');
+    this.inputController.setPlayerSide('player1');
     this.isPaused = false;
     this.spAI.setDifficulty(difficulty);
     this.spAI.reset();
@@ -417,12 +420,31 @@ class GameApp {
   }
 
   // --- MULTIPLAYER FLOW ---
+  private startMultiplayerMatch(room?: RoomState): void {
+    if (this.isMultiplayerMatchActive) return;
+    this.isMultiplayerMatchActive = true;
+    this.currentMode = 'multiplayer';
+
+    // Immediately dismiss party modal & all dialogs
+    this.uiManager.hideAllModals();
+
+    const p1Name = room?.players.player1?.name || this.netClient.roomState?.players.player1?.name || 'Player 1';
+    const p2Name = room?.players.player2?.name || this.netClient.roomState?.players.player2?.name || 'Player 2';
+    this.uiManager.showHUD('multiplayer', p1Name, p2Name);
+    this.uiManager.showControlHint(4500);
+
+    // Synchronize perspective (Player 1 vs Player 2)
+    const mySide = this.netClient.mySide;
+    this.sceneManager.setPlayerSide(mySide);
+    this.inputController.setPlayerSide(mySide);
+  }
+
   private async handleCreateParty(playerName: string): Promise<void> {
     this.isHost = true;
     this.uiManager.showPartyLoading('Creating private room...');
     const res = await this.netClient.createParty(playerName);
     if (res.success && res.room) {
-      this.currentMode = 'multiplayer';
+      this.isMultiplayerMatchActive = false;
       this.uiManager.showPartyLobby(res.room, true);
     } else {
       this.uiManager.showPartyError(res.error || 'Failed to create room. Please check server connection and retry.');
@@ -434,7 +456,7 @@ class GameApp {
     this.uiManager.showPartyLoading('Connecting to party room...');
     const res = await this.netClient.joinParty(code, playerName);
     if (res.success && res.room) {
-      this.currentMode = 'multiplayer';
+      this.isMultiplayerMatchActive = false;
       this.uiManager.showPartyLobby(res.room, false);
     } else {
       this.uiManager.showPartyError(res.error || 'Party code not found, expired, or room is full.');
@@ -443,7 +465,10 @@ class GameApp {
 
   private handleLeaveParty(): void {
     this.netClient.leaveParty();
+    this.isMultiplayerMatchActive = false;
     this.currentMode = 'none';
+    this.sceneManager.setPlayerSide('player1');
+    this.inputController.setPlayerSide('player1');
     this.uiManager.showMainMenu();
   }
 
@@ -481,6 +506,7 @@ class GameApp {
     if (this.currentMode === 'singleplayer') {
       this.startSinglePlayer(this.spAI.difficulty);
     } else if (this.currentMode === 'multiplayer') {
+      this.isMultiplayerMatchActive = false;
       this.netClient.rematch();
     }
   }
@@ -490,6 +516,7 @@ class GameApp {
       clearInterval(this.countdownInterval);
       this.countdownInterval = null;
     }
+    this.isMultiplayerMatchActive = false;
     this.currentMode = 'none';
     this.isPaused = false;
     this.spPhase = 'idle';
@@ -497,8 +524,9 @@ class GameApp {
     if (this.netClient.roomState) {
       this.netClient.leaveParty();
     }
+    this.sceneManager.setPlayerSide('player1');
+    this.inputController.setPlayerSide('player1');
     this.uiManager.showMainMenu();
-    this.sceneManager.resetCamera();
   }
 
   // --- MAIN ANIMATION LOOP ---

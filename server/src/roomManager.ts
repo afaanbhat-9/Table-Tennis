@@ -114,7 +114,7 @@ export class RoomManager {
       name: (playerName || 'Player 2').slice(0, 20).trim(),
       flag: flag || '🇺🇸',
       isHost: false,
-      isReady: false,
+      isReady: true,
       side: 'player2'
     };
 
@@ -152,7 +152,9 @@ export class RoomManager {
     const room = this.rooms.get(binding.code);
     if (!room || !room.player2) return;
 
-    if (!room.player1.isReady || !room.player2.isReady) return;
+    // Both players must be ready; ensure both are ready when host initiates start
+    room.player1.isReady = true;
+    room.player2.isReady = true;
 
     room.phase = 'countdown';
     this.io.to(binding.code).emit('party:updated', this.getRoomState(room));
