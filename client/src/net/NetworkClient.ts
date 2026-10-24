@@ -36,11 +36,12 @@ export class NetworkClient {
   public connect(): void {
     if (this.socket) return;
 
-    // Connect to server (in dev vite runs on 3000/5173 and server on 3001; in prod same origin)
+    // Connect to server (in dev vite runs on 3000/5173 and server on 3001; in prod same origin, or custom VITE_SERVER_URL)
+    const envUrl = (import.meta as any).env?.VITE_SERVER_URL;
     const isDev = window.location.port === '3000' || window.location.port === '5173';
-    const serverUrl = isDev
+    const serverUrl = envUrl || (isDev
       ? `${window.location.protocol}//${window.location.hostname}:3001`
-      : window.location.origin;
+      : window.location.origin);
 
     this.socket = io(serverUrl, {
       transports: ['websocket', 'polling'],

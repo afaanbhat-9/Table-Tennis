@@ -1,5 +1,6 @@
 import express from 'express';
 import http from 'http';
+import fs from 'fs';
 import { Server } from 'socket.io';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -22,11 +23,13 @@ const io = new Server<ClientToServerEvents, ServerToClientEvents>(server, {
   }
 });
 
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 3001;
 const roomManager = new RoomManager(io);
 
 // Serve static client assets if built
-const clientDistPath = path.resolve(process.cwd(), 'dist/client');
+const cwdClientPath = path.resolve(process.cwd(), 'dist/client');
+const relClientPath = path.resolve(__dirname, '../../../../dist/client');
+const clientDistPath = fs.existsSync(cwdClientPath) ? cwdClientPath : relClientPath;
 app.use(express.static(clientDistPath));
 
 app.get('/health', (_req, res) => {
@@ -93,6 +96,6 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`[Table Tennis Server] Running on http://localhost:${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`[Table Tennis Server] Running on http://0.0.0.0:${PORT}`);
 });

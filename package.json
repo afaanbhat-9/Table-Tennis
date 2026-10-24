@@ -7,10 +7,10 @@
   "scripts": {
     "dev:server": "tsx watch server/src/index.ts",
     "dev:client": "vite",
-    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"npm.cmd run dev:server\" \"npm.cmd run dev:client\"",
+    "dev": "concurrently -n \"SERVER,CLIENT\" -c \"cyan,magenta\" \"npm run dev:server\" \"npm run dev:client\"",
     "build:client": "vite build",
     "build:server": "tsc -p server/tsconfig.json",
-    "build": "npm.cmd run build:client && npm.cmd run build:server",
+    "build": "npm run build:client && npm run build:server",
     "test:game": "tsx tests/game.test.ts",
     "test:swing": "tsx tests/swing.test.ts",
     "test:multiplayer": "tsx tests/multiplayer.test.ts",
@@ -21,19 +21,19 @@
     "start": "node dist/server/server/src/index.js"
   },
   "dependencies": {
-    "express": "^4.21.2",
-    "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1",
-    "three": "^0.170.0"
-  },
-  "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.1",
     "@types/three": "^0.170.0",
-    "concurrently": "^9.1.0",
-    "puppeteer-core": "^25.14.0",
-    "tsx": "^4.19.2",
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
+    "three": "^0.170.0",
     "typescript": "^5.7.2",
     "vite": "^6.0.1"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "puppeteer-core": "^25.14.0",
+    "tsx": "^4.19.2"
   }
 }
