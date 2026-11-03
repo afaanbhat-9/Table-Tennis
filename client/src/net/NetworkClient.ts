@@ -9,6 +9,10 @@ import {
   ServerToClientEvents
 } from '../../../shared/types.js';
 
+export interface ClientSnapshot extends GameSnapshot {
+  receiveTime: number;
+}
+
 export class NetworkClient {
   public socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
   public isConnected: boolean = false;
@@ -17,8 +21,8 @@ export class NetworkClient {
   public pingMs: number = 0;
 
   // Snapshot Interpolation Buffer
-  private snapshots: GameSnapshot[] = [];
-  public latestSnapshot: GameSnapshot | null = null;
+  private snapshots: ClientSnapshot[] = [];
+  public latestSnapshot: ClientSnapshot | null = null;
 
   // Event callbacks
   public onPartyUpdated: ((room: RoomState) => void) | null = null;
@@ -69,10 +73,14 @@ export class NetworkClient {
     });
 
     this.socket.on('game:snapshot', (snap) => {
-      this.latestSnapshot = snap;
-      this.snapshots.push(snap);
-      if (this.snapshots.length > 30) this.snapshots.shift();
-      if (this.onGameSnapshot) this.onGameSnapshot(snap);
+      const clientSnap: ClientSnapshot = {
+        ...snap,
+        receiveTime: performance.now()
+      };
+      this.latestSnapshot = clientSnap;
+      this.snapshots.push(clientSnap);
+      if (this.snapshots.length > 40) this.snapshots.shift();
+      if (this.onGameSnapshot) this.onGameSnapshot(clientSnap);
     });
 
     this.socket.on('game:point_scored', (data) => {
@@ -217,30 +225,53 @@ export class NetworkClient {
   }
 
   /**
-   * Interpolate between recent server snapshots for butter-smooth animation.
+   * Interpolate between recent server snapshots using client-side monotonic receiveTime.
+   * Completely immune to client/server clock skew, timezone differences, and NTP drift.
+   * Features dead-reckoning fallback if network jitter delays a snapshot packet.
    */
-  public getInterpolatedState(renderTimeOffsetMs: number = 40): GameSnapshot | null {
+  public getInterpolatedState(renderTimeOffsetMs: number = 32): GameSnapshot | null {
     if (this.snapshots.length === 0) return null;
     if (this.snapshots.length === 1) return this.snapshots[0];
 
-    const targetTime = Date.now() - renderTimeOffsetMs;
+    const now = performance.now();
+    const targetTime = now - renderTimeOffsetMs;
 
-    // Find the two surrounding snapshots
+    const latest = this.snapshots[this.snapshots.length - 1];
+
+    // 1. If targetTime is newer than latest packet (brief packet delay or jitter),
+    // predict ball forward smoothly with dead-reckoning rather than stalling or teleporting!
+    if (targetTime >= latest.receiveTime) {
+      const overdueSec = Math.min(0.08, (targetTime - latest.receiveTime) / 1000);
+      const gravity = 9.81;
+      return {
+        ...latest,
+        ball: {
+          ...latest.ball,
+          pos: {
+            x: latest.ball.pos.x + latest.ball.vel.x * overdueSec,
+            y: Math.max(0.76, latest.ball.pos.y + latest.ball.vel.y * overdueSec - 0.5 * gravity * overdueSec * overdueSec),
+            z: latest.ball.pos.z + latest.ball.vel.z * overdueSec
+          }
+        }
+      };
+    }
+
+    // 2. Find the two surrounding snapshots in the buffer
     let prev = this.snapshots[0];
     let next = this.snapshots[this.snapshots.length - 1];
 
     for (let i = 0; i < this.snapshots.length - 1; i++) {
-      if (this.snapshots[i].timestamp <= targetTime && this.snapshots[i + 1].timestamp >= targetTime) {
+      if (this.snapshots[i].receiveTime <= targetTime && this.snapshots[i + 1].receiveTime >= targetTime) {
         prev = this.snapshots[i];
         next = this.snapshots[i + 1];
         break;
       }
     }
 
-    const timeDiff = next.timestamp - prev.timestamp;
-    const factor = timeDiff > 0 ? Math.max(0, Math.min(1, (targetTime - prev.timestamp) / timeDiff)) : 1;
+    const timeDiff = next.receiveTime - prev.receiveTime;
+    const factor = timeDiff > 0 ? Math.max(0, Math.min(1, (targetTime - prev.receiveTime) / timeDiff)) : 1;
 
-    // Interpolate ball & opponent paddle
+    // Interpolate ball & paddles
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
     return {

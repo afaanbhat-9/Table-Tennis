@@ -81,18 +81,11 @@ export class SoundManager {
   }
 
   /**
-   * Clean, pleasant countdown beep for 3, 2, 1 and serve/play start.
+   * Countdown sound silenced per user request.
+   * Only the sound when the ball hits the bat is enabled across the website.
    */
-  public playCountdown(count: number | string): void {
-    if (!this.ctx || !this.masterGain || this.isMuted) return;
-    const now = this.ctx.currentTime;
-
-    const isFinal = count === 0 || count === '0' || count === 'SERVE' || count === 'PLAY' || count === 'SERVE!' || count === 'PLAY!';
-    const freq = isFinal ? 880 : 580; // High tone for start, medium tone for 3, 2, 1
-    const duration = isFinal ? 0.09 : 0.06;
-    const vol = isFinal ? 0.18 : 0.15;
-
-    this.playTone(freq, now, duration, vol);
+  public playCountdown(_count: number | string): void {
+    // Silenced per user request: only paddle-ball hits make sound
   }
 
   // --- Silenced Sounds (Removed per user request to keep only paddle hit and countdown) ---

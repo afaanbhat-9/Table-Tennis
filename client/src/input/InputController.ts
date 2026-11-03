@@ -63,8 +63,8 @@ export class InputController {
   private planeZ: THREE.Plane;
 
   // Flick thresholds tuned for physical mouse, laptop trackpad, and touch screens
-  private readonly FLICK_MIN_SPEED_PX = 450;
-  private readonly FLICK_MIN_DISPLACEMENT_PX = 12;
+  private readonly FLICK_MIN_SPEED_PX = 650;
+  private readonly FLICK_MIN_DISPLACEMENT_PX = 20;
   private readonly FLICK_WINDOW_MS = 100;
 
   // Sensitivity: 1:1 direct screen raycast so paddle is exactly where the cursor points
@@ -315,9 +315,10 @@ export class InputController {
     const trackingVy = dt > 0.0001 ? (cur.y - prevY) / dt : 0;
     const trackingVz = dt > 0.0001 ? (cur.z - prevZ) / dt : 0;
 
-    const swingVx = this.swingState.phase === 'forward' ? this.swingState.velocity.x : 0;
-    const swingVy = this.swingState.phase === 'forward' ? this.swingState.velocity.y : 0;
-    const swingVz = this.swingState.phase === 'forward' ? this.swingState.velocity.z : 0;
+    const isStrokeActive = this.swingState.phase === 'forward' || this.swingState.phase === 'followthrough';
+    const swingVx = isStrokeActive ? this.swingState.velocity.x : 0;
+    const swingVy = isStrokeActive ? this.swingState.velocity.y : 0;
+    const swingVz = isStrokeActive ? this.swingState.velocity.z : 0;
 
     this.currentPaddle.vel = {
       x: trackingVx + swingVx,
@@ -349,6 +350,8 @@ export class InputController {
 
     this.currentPaddle.isSwinging = this.swingState.phase === 'forward';
     this.currentPaddle.swingPhase = this.swingState.phase;
+    this.currentPaddle.swingPower = this.swingState.strength;
+    this.currentPaddle.swingDirection = { ...this.swingState.direction };
 
     this.inputSeq++;
     return {

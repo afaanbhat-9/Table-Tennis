@@ -983,6 +983,9 @@
       display: none;
     }
 
+    /* =========================================================================
+       ANIME TOURNAMENT BROADCAST SCOREBOARD
+       ========================================================================= */
     .scoreboard-container {
       position: absolute;
       top: 14px;
@@ -990,23 +993,63 @@
       transform: translateX(-50%);
       display: flex;
       align-items: center;
-      gap: 8px;
-      background: linear-gradient(135deg, rgba(28, 22, 17, 0.94) 0%, rgba(18, 14, 10, 0.96) 100%);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      border-radius: 8px;
-      padding: 5px 12px;
-      border: 2px solid #3d2d1f;
-      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(220, 160, 60, 0.4), inset 0 1px 0 rgba(255, 235, 190, 0.25);
-      pointer-events: auto;
+      gap: 10px;
+      background: #0d111d;
+      background: linear-gradient(135deg, #0e1222 0%, #171d34 50%, #0a0d18 100%);
+      border-radius: 10px;
+      padding: 6px 14px;
+      border: 2px solid #f59e0b;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.85), 0 0 20px rgba(245, 158, 11, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 0 12px rgba(0, 0, 0, 0.7);
+      pointer-events: none;
       user-select: none;
+      z-index: 20;
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    }
+
+    .anime-header-strip {
+      position: absolute;
+      top: -2px;
+      left: 14px;
+      right: 14px;
+      height: 3px;
+      background: linear-gradient(90deg, #ff0844 0%, #fbbf24 50%, #00d2ff 100%);
+      border-radius: 2px;
+      box-shadow: 0 0 8px rgba(251, 191, 36, 0.8);
+      pointer-events: none;
+    }
+
+    /* Scoreboard Impact Shake on Point Score */
+    .scoreboard-container.shake-p1 {
+      animation: animeImpactShakeP1 0.45s ease-out both;
+    }
+
+    .scoreboard-container.shake-p2 {
+      animation: animeImpactShakeP2 0.45s ease-out both;
+    }
+
+    @keyframes animeImpactShakeP1 {
+      0%, 100% { transform: translateX(-50%) translate(0, 0); }
+      15% { transform: translateX(-50%) translate(-6px, 2px) rotate(-0.5deg); }
+      30% { transform: translateX(-50%) translate(5px, -2px) rotate(0.5deg); }
+      50% { transform: translateX(-50%) translate(-3px, 1px); }
+      70% { transform: translateX(-50%) translate(2px, -1px); }
+      85% { transform: translateX(-50%) translate(-1px, 0); }
+    }
+
+    @keyframes animeImpactShakeP2 {
+      0%, 100% { transform: translateX(-50%) translate(0, 0); }
+      15% { transform: translateX(-50%) translate(6px, 2px) rotate(0.5deg); }
+      30% { transform: translateX(-50%) translate(-5px, -2px) rotate(-0.5deg); }
+      50% { transform: translateX(-50%) translate(3px, 1px); }
+      70% { transform: translateX(-50%) translate(-2px, -1px); }
+      85% { transform: translateX(-50%) translate(1px, 0); }
     }
 
     .player-badge {
       display: flex;
       align-items: center;
-      gap: 6px;
-      padding: 0 2px;
+      gap: 7px;
+      padding: 0 4px;
     }
 
     .anime-chip {
@@ -1016,103 +1059,134 @@
       font-family: 'Impact', 'Trebuchet MS', 'Arial Black', sans-serif;
       font-style: italic;
       font-weight: 900;
-      font-size: 10.5px;
-      letter-spacing: 0.5px;
-      padding: 1.5px 5px;
-      border-radius: 3px;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-      text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.4);
+      font-size: 11px;
+      letter-spacing: 0.8px;
+      padding: 2.5px 8px;
+      border-radius: 4px;
+      transform: skewX(-12deg);
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+      text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.6);
+    }
+
+    .chip-inner {
+      display: inline-block;
+      transform: skewX(12deg);
     }
 
     .chip-p1 {
-      background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
+      background: linear-gradient(135deg, #ff0844 0%, #ff4e50 100%);
       color: #ffffff;
-      border: 1px solid rgba(255, 255, 255, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      box-shadow: 0 0 10px rgba(255, 8, 68, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.6);
     }
 
     .chip-p2 {
-      background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+      background: linear-gradient(135deg, #00d2ff 0%, #3a7bd5 100%);
       color: #ffffff;
-      border: 1px solid rgba(255, 255, 255, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      box-shadow: 0 0 10px rgba(0, 210, 255, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.6);
     }
 
     .player-name-label {
-      color: #fffef7;
       font-family: 'Impact', 'Trebuchet MS', 'Arial Black', sans-serif;
       font-style: italic;
       font-weight: 900;
-      font-size: 13px;
-      letter-spacing: 0.9px;
-      max-width: 90px;
+      font-size: 14px;
+      letter-spacing: 1.2px;
+      max-width: 95px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
       text-transform: uppercase;
-      text-shadow: 1px 1px 0 #000, 0 1px 4px rgba(0, 0, 0, 0.8);
+      color: #ffffff;
+      text-shadow: 1px 1px 0 #000, 0 1px 4px rgba(0, 0, 0, 0.9);
     }
 
+    .p1-name {
+      color: #ffffff;
+    }
+
+    .p2-name {
+      color: #ffffff;
+    }
+
+    /* Modern Anime Serve Indicator */
     .serve-indicator {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 13px;
+      width: 0;
       opacity: 0;
       transform: scale(0.6);
-      transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
-      filter: drop-shadow(0 0 5px #eab308);
-    }
-
-    .serve-indicator::before {
-      content: '🏓';
+      transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+      pointer-events: none;
+      overflow: visible;
     }
 
     .serve-indicator.active {
+      width: 24px;
       opacity: 1;
       transform: scale(1);
-      animation: animeServePulse 1.4s infinite ease-in-out;
+      animation: animeServeFlame 1.3s infinite ease-in-out;
     }
 
-    @keyframes animeServePulse {
+    .serve-icon {
+      font-size: 16px;
+      filter: drop-shadow(0 0 6px #fbbf24) drop-shadow(0 0 12px #f59e0b);
+      user-select: none;
+    }
+
+    @keyframes animeServeFlame {
       0%, 100% {
-        transform: scale(1) rotate(-8deg);
-        filter: drop-shadow(0 0 5px #f59e0b) drop-shadow(0 0 10px #e11d48);
+        transform: scale(1) rotate(-6deg);
+        filter: drop-shadow(0 0 6px #f59e0b) drop-shadow(0 0 12px #ff0844);
       }
       50% {
-        transform: scale(1.22) rotate(4deg);
-        filter: drop-shadow(0 0 8px #fbbf24) drop-shadow(0 0 14px #f43f5e);
+        transform: scale(1.22) rotate(6deg);
+        filter: drop-shadow(0 0 9px #fbbf24) drop-shadow(0 0 16px #f59e0b);
       }
     }
 
+    /* Score Cards Wrapper */
     .score-cards-wrapper {
+      position: relative;
       display: flex;
       align-items: center;
-      gap: 4px;
-      background: rgba(12, 9, 6, 0.92);
-      border-radius: 6px;
-      padding: 3px 6px;
-      border: 1.5px solid #4a3724;
-      box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.7);
+      gap: 6px;
+      background: linear-gradient(180deg, rgba(6, 8, 16, 0.98) 0%, rgba(12, 16, 28, 0.98) 100%);
+      border-radius: 8px;
+      padding: 4px 10px;
+      border: 1.5px solid rgba(251, 191, 36, 0.55);
+      box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.9), 0 0 15px rgba(245, 158, 11, 0.2);
     }
 
-    .flip-card {
+    .score-card-box {
       position: relative;
-      width: 36px;
-      height: 42px;
-      background: linear-gradient(180deg, #fffdf7 0%, #f3ece0 48%, #cfc1ab 49%, #b8a890 51%, #f3ece0 52%, #fffdf7 100%);
-      color: #1a140d;
-      border-radius: 6px;
-      border: 2px solid #2e2013;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 26px;
+    }
+
+    /* Flip Card Tile */
+    .flip-card {
+      position: relative;
+      width: 40px;
+      height: 46px;
+      background: linear-gradient(180deg, #181d2c 0%, #101320 49%, #080a12 51%, #131724 100%);
+      color: #ffffff;
+      border-radius: 6px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
       font-weight: 900;
       font-style: italic;
       font-family: 'Impact', 'Trebuchet MS', 'Arial Black', sans-serif;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.85);
-      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
-      transition: transform 0.15s ease;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+      transition: transform 0.15s ease, border-color 0.2s ease;
       perspective: 600px;
+      z-index: 2;
     }
 
     .flip-card::after {
@@ -1122,44 +1196,192 @@
       right: 0;
       top: 50%;
       height: 1px;
-      background: rgba(50, 35, 20, 0.35);
-      box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+      background: rgba(251, 191, 36, 0.5);
+      box-shadow: 0 0 4px rgba(251, 191, 36, 0.8);
       pointer-events: none;
     }
 
-    @keyframes animeScoreFlipPop {
-      0% {
-        transform: scale(1) rotateX(0deg);
-        filter: brightness(1);
-      }
-      35% {
-        transform: scale(1.42) rotateX(-25deg);
-        filter: brightness(1.25) drop-shadow(0 0 14px #fbbf24) drop-shadow(0 0 20px #f59e0b);
-        color: #b45309;
-      }
-      70% {
-        transform: scale(1.1) rotateX(12deg);
-        filter: drop-shadow(0 0 8px #f59e0b);
-      }
-      100% {
-        transform: scale(1) rotateX(0deg);
-        filter: brightness(1);
-      }
-    }
-
-    .flip-card.score-pop {
-      animation: animeScoreFlipPop 0.55s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+    /* Center VS Tag */
+    .score-vs-container {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      padding: 0 2px;
     }
 
     .score-vs-tag {
       font-family: 'Impact', 'Trebuchet MS', sans-serif;
       font-style: italic;
       font-weight: 900;
-      font-size: 11px;
-      color: #f59e0b;
-      padding: 0 2px;
-      text-shadow: 1px 1px 0 #000, 0 0 4px rgba(245, 158, 11, 0.4);
+      font-size: 12px;
+      background: linear-gradient(135deg, #fef08a 0%, #fbbf24 50%, #f97316 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.8));
       letter-spacing: 0.5px;
+      transform: skewX(-8deg);
+    }
+
+    .vs-slash {
+      display: inline-block;
+      width: 2px;
+      height: 14px;
+      background: rgba(251, 191, 36, 0.4);
+      transform: skewX(-20deg);
+    }
+
+    /* Point Scored Animations: Player 1 (Crimson Surge) */
+    .flip-card.score-pop-p1 {
+      animation: animeScorePopP1 0.65s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+    }
+
+    @keyframes animeScorePopP1 {
+      0% {
+        transform: scale(1) rotate(0deg);
+        filter: brightness(1);
+      }
+      25% {
+        transform: scale(1.48) rotate(-7deg);
+        filter: brightness(1.6) drop-shadow(0 0 20px #ff0844) drop-shadow(0 0 35px #ff4e50);
+        border-color: #ff0844;
+      }
+      50% {
+        transform: scale(1.15) rotate(3deg);
+        filter: brightness(1.3) drop-shadow(0 0 12px #ff0844);
+        border-color: #ff4e50;
+      }
+      75% {
+        transform: scale(0.96) rotate(-1deg);
+      }
+      100% {
+        transform: scale(1) rotate(0deg);
+        filter: brightness(1);
+      }
+    }
+
+    /* Point Scored Animations: Player 2 (Azure Surge) */
+    .flip-card.score-pop-p2 {
+      animation: animeScorePopP2 0.65s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+    }
+
+    @keyframes animeScorePopP2 {
+      0% {
+        transform: scale(1) rotate(0deg);
+        filter: brightness(1);
+      }
+      25% {
+        transform: scale(1.48) rotate(7deg);
+        filter: brightness(1.6) drop-shadow(0 0 20px #00d2ff) drop-shadow(0 0 35px #3a7bd5);
+        border-color: #00d2ff;
+      }
+      50% {
+        transform: scale(1.15) rotate(-3deg);
+        filter: brightness(1.3) drop-shadow(0 0 12px #00d2ff);
+        border-color: #3a7bd5;
+      }
+      75% {
+        transform: scale(0.96) rotate(1deg);
+      }
+      100% {
+        transform: scale(1) rotate(0deg);
+        filter: brightness(1);
+      }
+    }
+
+    /* Floating "+1" Anime Badge right above digit card */
+    .anime-point-popup {
+      position: absolute;
+      top: -10px;
+      left: 50%;
+      transform: translateX(-50%) scale(0);
+      pointer-events: none;
+      opacity: 0;
+      z-index: 30;
+      font-family: 'Impact', 'Trebuchet MS', sans-serif;
+      font-style: italic;
+      font-weight: 900;
+      font-size: 13px;
+      padding: 1px 7px;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    .pop-p1 {
+      background: linear-gradient(135deg, #ff0844 0%, #ff6b6b 100%);
+      color: #ffffff;
+      box-shadow: 0 0 12px rgba(255, 8, 68, 0.9), 0 2px 6px rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+    }
+
+    .pop-p2 {
+      background: linear-gradient(135deg, #00d2ff 0%, #00b4d8 100%);
+      color: #ffffff;
+      box-shadow: 0 0 12px rgba(0, 210, 255, 0.9), 0 2px 6px rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.7);
+    }
+
+    .anime-point-popup.active {
+      animation: animePointPopFloat 0.75s ease-out both;
+    }
+
+    @keyframes animePointPopFloat {
+      0% {
+        opacity: 0;
+        transform: translateX(-50%) translateY(4px) scale(0.3) rotate(-6deg);
+      }
+      25% {
+        opacity: 1;
+        transform: translateX(-50%) translateY(-6px) scale(1.3) rotate(3deg);
+        filter: brightness(1.4);
+      }
+      60% {
+        opacity: 1;
+        transform: translateX(-50%) translateY(-14px) scale(1.05) rotate(-1deg);
+      }
+      100% {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-22px) scale(0.75) rotate(0deg);
+      }
+    }
+
+    /* Shockwave Expanding Ring */
+    .anime-score-shockwave {
+      position: absolute;
+      top: 50%;
+      width: 44px;
+      height: 50px;
+      border-radius: 8px;
+      pointer-events: none;
+      opacity: 0;
+      z-index: 1;
+      transform: translateY(-50%) scale(0.8);
+    }
+
+    .shockwave-p1 {
+      left: 10px;
+      border: 2px solid #ff0844;
+      box-shadow: 0 0 15px #ff0844;
+    }
+
+    .shockwave-p2 {
+      right: 10px;
+      border: 2px solid #00d2ff;
+      box-shadow: 0 0 15px #00d2ff;
+    }
+
+    .anime-score-shockwave.active {
+      animation: animeShockwaveRing 0.55s ease-out both;
+    }
+
+    @keyframes animeShockwaveRing {
+      0% {
+        opacity: 0.95;
+        transform: translateY(-50%) scale(0.8);
+      }
+      100% {
+        opacity: 0;
+        transform: translateY(-50%) scale(2.2);
+      }
     }
 
     /* Top Right Buttons */
@@ -1207,6 +1429,8 @@
       pointer-events: none;
       z-index: 100;
       user-select: none;
+      width: max-content;
+      max-width: 90vw;
     }
 
     .anime-countdown-container.active {
@@ -1214,11 +1438,13 @@
     }
 
     .anime-countdown-digit {
+      display: inline-block;
       font-family: 'Impact', 'Trebuchet MS', 'Arial Black', sans-serif;
       font-style: italic;
       font-weight: 900;
       font-size: clamp(84px, 16vw, 136px);
-      line-height: 1;
+      line-height: 1.25;
+      padding: 0.15em 0.35em;
       letter-spacing: 2px;
       color: #ffffff;
       background: linear-gradient(180deg, #ffffff 0%, #fef08a 35%, #f59e0b 65%, #dc2626 100%);
@@ -1227,6 +1453,8 @@
       filter: drop-shadow(0 4px 0 #450a0a) drop-shadow(0 0 20px rgba(245, 158, 11, 0.85)) drop-shadow(0 0 45px rgba(239, 68, 68, 0.6));
       text-transform: uppercase;
       will-change: transform, opacity;
+      overflow: visible;
+      text-align: center;
     }
 
     .anime-countdown-digit.burst {
@@ -1234,16 +1462,22 @@
     }
 
     .anime-countdown-sub {
+      display: inline-block;
       font-family: 'Impact', 'Trebuchet MS', 'Arial Black', sans-serif;
       font-style: italic;
       font-weight: 900;
       font-size: clamp(18px, 4vw, 28px);
+      line-height: 1.2;
+      padding: 0.1em 0.3em;
       letter-spacing: 4px;
       color: #fef08a;
       text-shadow: 2px 2px 0 #450a0a, 0 0 14px rgba(245, 158, 11, 0.85);
       text-transform: uppercase;
-      margin-top: 6px;
+      margin-top: 2px;
       animation: animeSubPulse 0.85s ease-out both;
+      overflow: visible;
+      white-space: nowrap;
+      text-align: center;
     }
 
     @keyframes animeDigitBurst {
@@ -1409,26 +1643,27 @@
       }
       .scoreboard-container {
         top: 8px;
-        padding: 3px 8px;
-        gap: 5px;
+        padding: 4px 10px;
+        gap: 6px;
         border-radius: 8px;
       }
       .player-name-label {
-        display: none;
+        font-size: 11px;
+        max-width: 55px;
       }
       .player-status-dot {
         width: 6px;
         height: 6px;
       }
       .flip-card {
-        width: 26px;
-        height: 32px;
-        font-size: 18px;
+        width: 32px;
+        height: 38px;
+        font-size: 22px;
         border-radius: 5px;
       }
       .score-cards-wrapper {
         gap: 4px;
-        padding: 2px 4px;
+        padding: 3px 6px;
         border-radius: 6px;
       }
       .score-divider {
@@ -1449,20 +1684,26 @@
     @media (max-width: 480px) {
       .scoreboard-container {
         top: 6px;
-        padding: 2px 6px;
+        padding: 3px 6px;
         gap: 4px;
       }
       .anime-chip {
-        font-size: 9px;
-        padding: 1px 3.5px;
+        font-size: 9.5px;
+        padding: 1.5px 5px;
+      }
+      .player-name-label {
+        display: none;
       }
       .flip-card {
-        width: 24px;
-        height: 30px;
-        font-size: 16px;
+        width: 26px;
+        height: 32px;
+        font-size: 18px;
       }
       .score-vs-tag {
-        font-size: 9.5px;
+        font-size: 10px;
+      }
+      .serve-text {
+        display: none;
       }
       .top-actions {
         top: 6px;
@@ -1555,23 +1796,51 @@
   <!-- IN-GAME HUD OVERLAY -->
   <div id="hud-overlay">
     <!-- Top Center Broadcast Scoreboard (Anime Tournament Style) -->
-    <div class="scoreboard-container anime-board">
-      <div class="player-badge p1-badge">
-        <span class="anime-chip chip-p1">1P</span>
-        <span id="hud-name-p1" class="player-name-label">YOU</span>
-        <span id="hud-serve-p1" class="serve-indicator active" title="Serving"></span>
+    <div class="scoreboard-container anime-board" id="main-scoreboard">
+      <div class="anime-header-strip"></div>
+
+      <!-- Player 1 Badge (Crimson Flame) -->
+      <div class="player-badge p1-badge" id="hud-badge-p1">
+        <div class="anime-chip chip-p1">
+          <span class="chip-inner">1P</span>
+        </div>
+        <span id="hud-name-p1" class="player-name-label p1-name">YOU</span>
+        <div id="hud-serve-p1" class="serve-indicator active" title="Serving">
+          <span class="serve-icon">🏓</span>
+        </div>
       </div>
 
+      <!-- Center Score Board -->
       <div class="score-cards-wrapper">
-        <div id="hud-score-p1" class="flip-card">0</div>
-        <div class="score-vs-tag">VS</div>
-        <div id="hud-score-p2" class="flip-card">0</div>
+        <div id="shockwave-p1" class="anime-score-shockwave shockwave-p1"></div>
+        <div id="shockwave-p2" class="anime-score-shockwave shockwave-p2"></div>
+
+        <div class="score-card-box p1-box">
+          <div id="hud-score-p1" class="flip-card card-p1">0</div>
+          <div id="hud-pop-p1" class="anime-point-popup pop-p1">+1</div>
+        </div>
+
+        <div class="score-vs-container">
+          <span class="vs-slash slash-left"></span>
+          <div class="score-vs-tag">VS</div>
+          <span class="vs-slash slash-right"></span>
+        </div>
+
+        <div class="score-card-box p2-box">
+          <div id="hud-score-p2" class="flip-card card-p2">0</div>
+          <div id="hud-pop-p2" class="anime-point-popup pop-p2">+1</div>
+        </div>
       </div>
 
-      <div class="player-badge p2-badge">
-        <span id="hud-serve-p2" class="serve-indicator" title="Serving"></span>
-        <span id="hud-name-p2" class="player-name-label">CPU</span>
-        <span class="anime-chip chip-p2">2P</span>
+      <!-- Player 2 Badge (Electric Azure) -->
+      <div class="player-badge p2-badge" id="hud-badge-p2">
+        <div id="hud-serve-p2" class="serve-indicator" title="Serving">
+          <span class="serve-icon">🏓</span>
+        </div>
+        <span id="hud-name-p2" class="player-name-label p2-name">CPU</span>
+        <div class="anime-chip chip-p2">
+          <span class="chip-inner">2P</span>
+        </div>
       </div>
     </div>
 

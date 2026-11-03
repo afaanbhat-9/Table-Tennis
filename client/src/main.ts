@@ -45,6 +45,7 @@ class GameApp {
   private lastTime: number = performance.now();
   private physicsAccumulator: number = 0;
   private isHost: boolean = false;
+  private lastInputSendTime: number = 0;
 
   constructor() {
     this.container = document.getElementById('game-container')!;
@@ -58,10 +59,9 @@ class GameApp {
     this.spRules = new RuleEngine();
     this.spAI = new TableTennisAI('medium');
 
-    // Swing trigger feedback
+    // Swing trigger feedback (visual badge only; sound only plays when ball hits bat)
     this.inputController.onSwingTriggered = (strength) => {
       this.uiManager.showSwingIndicator(strength);
-      this.soundManager.playPaddleHit(0.35 * strength);
     };
 
     // Click or tap to serve immediately and reliably
@@ -158,6 +158,11 @@ class GameApp {
           if (snd.type === 'paddle_hit') {
             this.soundManager.playPaddleHit(snd.intensity);
             this.sceneManager.triggerHitEffect(snd.pos);
+            if (snap.ball.lastHitter === this.netClient.mySide) {
+              if (this.inputController.currentPaddle.isSwinging || this.inputController.swingState.phase !== 'idle') {
+                this.inputController.triggerHitSwing();
+              }
+            }
           } else if (snd.type === 'table_hit') {
             this.soundManager.playTableBounce(snd.intensity);
             this.sceneManager.triggerHitEffect(snd.pos);
@@ -287,6 +292,8 @@ class GameApp {
     this.spPhysics.paddle1.rot = { ...this.inputController.currentPaddle.rot };
     this.spPhysics.paddle1.isSwinging = this.inputController.currentPaddle.isSwinging;
     this.spPhysics.paddle1.swingPhase = this.inputController.currentPaddle.swingPhase;
+    this.spPhysics.paddle1.swingPower = this.inputController.currentPaddle.swingPower;
+    this.spPhysics.paddle1.swingDirection = this.inputController.currentPaddle.swingDirection;
 
     // 2. Update AI paddle
     this.spAI.update(dt, this.spPhysics.ball, this.spPhysics.paddle2);
@@ -312,7 +319,9 @@ class GameApp {
           this.soundManager.playPaddleHit(snd.intensity);
           this.sceneManager.triggerHitEffect(snd.pos);
           if (this.spRules.serve.server === 'player1') {
-            this.inputController.triggerHitSwing();
+            if (this.inputController.currentPaddle.isSwinging || this.inputController.swingState.phase !== 'idle') {
+              this.inputController.triggerHitSwing();
+            }
           }
         } else if (snd.type === 'table_hit') {
           this.soundManager.playTableBounce(snd.intensity);
@@ -371,7 +380,9 @@ class GameApp {
           this.soundManager.playPaddleHit(snd.intensity);
           this.sceneManager.triggerHitEffect(snd.pos);
           if (this.spPhysics.ball.lastHitter === 'player1') {
-            this.inputController.triggerHitSwing();
+            if (this.inputController.currentPaddle.isSwinging || this.inputController.swingState.phase !== 'idle') {
+              this.inputController.triggerHitSwing();
+            }
           }
         } else if (snd.type === 'table_hit') {
           this.soundManager.playTableBounce(snd.intensity);
@@ -473,14 +484,34 @@ class GameApp {
   }
 
   private updateMultiplayer(dt: number): void {
-    // 1. Gather player input and send to server
+    // 1. Gather player input and throttle send to server at ~60Hz (prevents high refresh rate socket flooding)
     const input = this.inputController.update(dt);
-    this.netClient.sendInput(input);
+    const now = performance.now();
+    if (now - this.lastInputSendTime >= 15.0) {
+      this.lastInputSendTime = now;
+      this.netClient.sendInput(input);
+    }
 
-    // 2. Interpolate authoritative game snapshot
-    const snap = this.netClient.getInterpolatedState(50);
+    // 2. Interpolate authoritative game snapshot with 0ms client-side prediction for local paddle
+    const snap = this.netClient.getInterpolatedState(32);
     if (snap) {
-      this.sceneManager.updateGameState(snap.ball, snap.paddle1, snap.paddle2, dt);
+      this.inputController.activeBall = snap.ball;
+
+      const mySide = this.netClient.mySide;
+      const localPaddle = this.inputController.currentPaddle;
+
+      // Client-side prediction: Render local player's paddle directly from inputController (0ms lag)
+      // Remote player's paddle is rendered from the smoothed network snapshot buffer
+      const p1 = mySide === 'player1' ? localPaddle : snap.paddle1;
+      const p2 = mySide === 'player2' ? localPaddle : snap.paddle2;
+
+      this.sceneManager.updateGameState(snap.ball, p1, p2, dt);
+    } else if (this.netClient.latestSnapshot) {
+      const mySide = this.netClient.mySide;
+      const localPaddle = this.inputController.currentPaddle;
+      const p1 = mySide === 'player1' ? localPaddle : this.netClient.latestSnapshot.paddle1;
+      const p2 = mySide === 'player2' ? localPaddle : this.netClient.latestSnapshot.paddle2;
+      this.sceneManager.updateGameState(this.netClient.latestSnapshot.ball, p1, p2, dt);
     }
   }
 

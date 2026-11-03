@@ -56,6 +56,7 @@ export class GameRoom {
     this.player1 = hostPlayer;
     this.io = io;
     this.physics = new PhysicsSimulation();
+    this.physics.isMultiplayer = true;
     this.rules = new RuleEngine();
   }
 
@@ -70,6 +71,7 @@ export class GameRoom {
   public startMatch(): void {
     this.rules.reset();
     this.physics = new PhysicsSimulation();
+    this.physics.isMultiplayer = true;
     this.startCountdown();
   }
 
@@ -112,10 +114,10 @@ export class GameRoom {
       this.updatePhysics();
     }, 1000 / 60);
 
-    // 30Hz Network Snapshot Broadcast
+    // 60Hz Network Snapshot Broadcast for silky smooth real-time play
     this.snapshotInterval = setInterval(() => {
       this.broadcastSnapshot();
-    }, 1000 / 30);
+    }, 1000 / 60);
   }
 
   public handleInput(side: PlayerSide, input: PlayerInput): void {
@@ -190,6 +192,8 @@ export class GameRoom {
     // Natural paddle orientation & swing state
     paddle.isSwinging = input.isSwinging || false;
     paddle.swingPhase = input.swingPhase || 'idle';
+    paddle.swingPower = input.swingPower;
+    paddle.swingDirection = input.swingDirection;
     paddle.rot = {
       x: isP1 ? (input.isSwinging ? -0.35 : -0.1) : (input.isSwinging ? 0.35 : 0.1),
       y: (paddle.pos.x / 1.0) * (isP1 ? 0.35 : -0.35),

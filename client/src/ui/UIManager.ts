@@ -27,6 +27,11 @@ export class UIManager {
   private hudServeP2 = document.getElementById('hud-serve-p2')!;
   private hudModeLabel = document.getElementById('hud-mode-label')!;
   private hudPingLabel = document.getElementById('hud-ping-label')!;
+  private scoreboardContainer = document.getElementById('main-scoreboard');
+  private hudPopP1 = document.getElementById('hud-pop-p1');
+  private hudPopP2 = document.getElementById('hud-pop-p2');
+  private shockwaveP1 = document.getElementById('shockwave-p1');
+  private shockwaveP2 = document.getElementById('shockwave-p2');
 
   private banner = document.getElementById('announcement-banner')!;
   private bannerText = document.getElementById('announcement-text')!;
@@ -508,8 +513,15 @@ export class UIManager {
     this.prevScoreP2 = 0;
     this.hudScoreP1.innerText = '0';
     this.hudScoreP2.innerText = '0';
-    this.hudScoreP1.classList.remove('score-pop');
-    this.hudScoreP2.classList.remove('score-pop');
+    this.hudScoreP1.classList.remove('score-pop', 'score-pop-p1', 'score-pop-p2');
+    this.hudScoreP2.classList.remove('score-pop', 'score-pop-p1', 'score-pop-p2');
+    if (this.scoreboardContainer) {
+      this.scoreboardContainer.classList.remove('shake-p1', 'shake-p2');
+    }
+    if (this.hudPopP1) this.hudPopP1.classList.remove('active');
+    if (this.hudPopP2) this.hudPopP2.classList.remove('active');
+    if (this.shockwaveP1) this.shockwaveP1.classList.remove('active');
+    if (this.shockwaveP2) this.shockwaveP2.classList.remove('active');
 
     this.hudModeLabel.innerText = mode === 'singleplayer' ? `Singleplayer (${this.selectedDifficulty})` : 'Online Party Match';
     this.hudPingLabel.style.display = mode === 'multiplayer' ? 'inline' : 'none';
@@ -525,7 +537,7 @@ export class UIManager {
     if (score.player1 !== this.prevScoreP1) {
       this.hudScoreP1.innerText = score.player1.toString();
       if (score.player1 > this.prevScoreP1) {
-        this.triggerScoreCardAnimation(this.hudScoreP1);
+        this.triggerScorePointAnimation('player1');
       }
       this.prevScoreP1 = score.player1;
     }
@@ -533,7 +545,7 @@ export class UIManager {
     if (score.player2 !== this.prevScoreP2) {
       this.hudScoreP2.innerText = score.player2.toString();
       if (score.player2 > this.prevScoreP2) {
-        this.triggerScoreCardAnimation(this.hudScoreP2);
+        this.triggerScorePointAnimation('player2');
       }
       this.prevScoreP2 = score.player2;
     }
@@ -547,8 +559,43 @@ export class UIManager {
     }
   }
 
+  private triggerScorePointAnimation(player: 'player1' | 'player2'): void {
+    const isP1 = player === 'player1';
+    const cardEl = isP1 ? this.hudScoreP1 : this.hudScoreP2;
+    const popEl = isP1 ? this.hudPopP1 : this.hudPopP2;
+    const shockEl = isP1 ? this.shockwaveP1 : this.shockwaveP2;
+    const popClass = isP1 ? 'score-pop-p1' : 'score-pop-p2';
+    const shakeClass = isP1 ? 'shake-p1' : 'shake-p2';
+
+    // 1. Flip card anime pop
+    cardEl.classList.remove('score-pop', 'score-pop-p1', 'score-pop-p2');
+    void cardEl.offsetWidth;
+    cardEl.classList.add(popClass);
+
+    // 2. Scoreboard container anime impact shake
+    if (this.scoreboardContainer) {
+      this.scoreboardContainer.classList.remove('shake-p1', 'shake-p2');
+      void this.scoreboardContainer.offsetWidth;
+      this.scoreboardContainer.classList.add(shakeClass);
+    }
+
+    // 3. Floating "+1" anime badge
+    if (popEl) {
+      popEl.classList.remove('active');
+      void popEl.offsetWidth;
+      popEl.classList.add('active');
+    }
+
+    // 4. Shockwave expanding energy ring
+    if (shockEl) {
+      shockEl.classList.remove('active');
+      void shockEl.offsetWidth;
+      shockEl.classList.add('active');
+    }
+  }
+
   private triggerScoreCardAnimation(el: HTMLElement): void {
-    el.classList.remove('score-pop');
+    el.classList.remove('score-pop', 'score-pop-p1', 'score-pop-p2');
     void el.offsetWidth;
     el.classList.add('score-pop');
   }

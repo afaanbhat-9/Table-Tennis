@@ -31,6 +31,8 @@ export interface PaddleState {
   rot: Vector3D; // Euler angles in radians (e.g. pitch, yaw, roll)
   isSwinging?: boolean;
   swingPhase?: 'idle' | 'windup' | 'forward' | 'followthrough' | 'recovery';
+  swingPower?: number;
+  swingDirection?: Vector3D;
 }
 
 export type MatchPhase =

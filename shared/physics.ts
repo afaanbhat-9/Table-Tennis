@@ -54,6 +54,7 @@ export class PhysicsSimulation {
   public paddle1: PaddleState;
   public paddle2: PaddleState;
   public aiDifficulty: AIDifficulty = 'medium';
+  public isMultiplayer: boolean = false;
 
   public setAIDifficulty(difficulty: AIDifficulty): void {
     this.aiDifficulty = difficulty;
@@ -534,13 +535,14 @@ export class PhysicsSimulation {
 
     // 4. Swept Paddle Collision (Anti-Tunneling line segment)
     // Player 1 Paddle (Z > 0)
-    if (this.p1Cooldown <= 0) {
-      const isServeP1 = b.isServe && b.lastHitter === 'player1';
+    const isServeP1 = b.isServe && b.lastHitter === 'player1';
+    const isP1Turn = b.lastHitter !== 'player1' || isServeP1;
+    if (this.p1Cooldown <= 0 && isP1Turn) {
       const forwardStrokeP1 = -this.paddle1.vel.z;
       const totalSpeedP1 = Math.hypot(this.paddle1.vel.x, this.paddle1.vel.y, this.paddle1.vel.z);
       const canHitServeP1 = !isServeP1 || (this.paddle1.isSwinging || forwardStrokeP1 >= MIN_SERVE_RELEASE_SPEED || (totalSpeedP1 >= 0.22 && forwardStrokeP1 >= 0.03));
       const isApproachingP1 = b.vel.z > -0.5 || isServeP1;
-      const crossesPlaneP1 = Math.max(b.pos.z, prevPos.z) >= this.paddle1.pos.z - 0.35;
+      const crossesPlaneP1 = Math.max(b.pos.z, prevPos.z) >= this.paddle1.pos.z - 0.20;
       if (
         isApproachingP1 &&
         canHitServeP1 &&
@@ -580,8 +582,9 @@ export class PhysicsSimulation {
     }
 
     // Player 2 Paddle (Z < 0)
-    if (this.p2Cooldown <= 0) {
-      const isServeP2 = b.isServe && b.lastHitter === 'player2';
+    const isServeP2 = b.isServe && b.lastHitter === 'player2';
+    const isP2Turn = b.lastHitter !== 'player2' || isServeP2;
+    if (this.p2Cooldown <= 0 && isP2Turn) {
       const forwardStrokeP2 = this.paddle2.vel.z;
       const totalSpeedP2 = Math.hypot(this.paddle2.vel.x, this.paddle2.vel.y, this.paddle2.vel.z);
       const canHitServeP2 = !isServeP2 || (this.paddle2.isSwinging || forwardStrokeP2 >= MIN_SERVE_RELEASE_SPEED || (totalSpeedP2 >= 0.22 && forwardStrokeP2 >= 0.03));
@@ -688,14 +691,15 @@ export class PhysicsSimulation {
   ): { collided: boolean; intensity: number } {
     const b = this.ball;
     const isP1 = side === 'player1';
+    const isHuman = isP1 || this.isMultiplayer;
     const dirZ = isP1 ? -1 : 1;
 
     const isServeToss = b.isServe && (b.serveState === 'tossed' || b.serveState === 'held');
-    // Generous Hitbox for Player 1 (human player on 2D screen without VR depth perception):
-    // Expanded collision radius (22cm) and depth thickness (38cm) guarantees that whenever you
-    // visually line up the paddle with the ball on screen, contact connects cleanly and intuitively!
-    const hitRadius = isP1 ? 0.22 : (isServeToss ? (SERVE_BALL_OFFSET_Y + 0.16) : PADDLE_HITBOX_RADIUS);
-    const thickness = isP1 ? 0.38 : (isServeToss ? (SERVE_BALL_OFFSET_Z + 0.08) : 0.28);
+    // Authentic contact geometry:
+    // Generous hitbox radius allows forgiving 2D screen targeting, while physically calibrated depth
+    // ensures the ball connects directly at the paddle face without pre-contact snapping or sticking!
+    const hitRadius = isHuman ? 0.22 : (isServeToss ? (SERVE_BALL_OFFSET_Y + 0.16) : PADDLE_HITBOX_RADIUS);
+    const thickness = isServeToss ? (SERVE_BALL_OFFSET_Z + 0.08) : (isHuman ? 0.10 : 0.28);
 
     // Paddle disk center & offsets at current position
     let dx = b.pos.x - paddle.pos.x;
@@ -703,7 +707,7 @@ export class PhysicsSimulation {
     let dz = b.pos.z - paddle.pos.z;
 
     // Height tolerance is relaxed (effectiveDy) so balls near the blade cleanly connect!
-    const effectiveDy = dy * (isP1 ? 0.35 : 0.45);
+    const effectiveDy = dy * (isHuman ? 0.35 : 0.45);
     let radialDist = Math.hypot(dx, effectiveDy);
     let isHit = radialDist <= hitRadius && Math.abs(dz) <= thickness;
 
@@ -712,13 +716,14 @@ export class PhysicsSimulation {
       const segDz = b.pos.z - prevPos.z;
       if (Math.abs(segDz) > 1e-5) {
         const t = (paddle.pos.z - prevPos.z) / segDz;
-        const tMin = isP1 ? -0.45 : -0.25;
-        const tMax = isP1 ? 1.45 : 1.25;
+        // Swept intersection within sub-step path with slight numerical safety
+        const tMin = isHuman ? -0.15 : -0.25;
+        const tMax = isHuman ? 1.15 : 1.25;
         if (t >= tMin && t <= tMax) {
           const clampedT = Math.max(0, Math.min(1, t));
           const sweptX = prevPos.x + clampedT * (b.pos.x - prevPos.x);
           const sweptY = prevPos.y + clampedT * (b.pos.y - prevPos.y);
-          const sweptRadial = Math.hypot(sweptX - paddle.pos.x, (sweptY - paddle.pos.y) * (isP1 ? 0.35 : 0.45));
+          const sweptRadial = Math.hypot(sweptX - paddle.pos.x, (sweptY - paddle.pos.y) * (isHuman ? 0.35 : 0.45));
           if (sweptRadial <= hitRadius) {
             isHit = true;
             b.pos.x = sweptX;
@@ -826,27 +831,24 @@ export class PhysicsSimulation {
       const reboundTangY = vTangY * frictionGrip;
       const reboundTangZ = vTangZ * frictionGrip;
 
-      // Simplified stroke calculation and calibrated return speed:
-      // forwardStroke: deliberate forward push towards opponent
-      // strokeIntensity: combined forward and lateral movement
+      // Stroke intensity combines deliberate forward stroke and lateral brushing
       const forwardStroke = Math.max(0, dirZ * paddle.vel.z);
       const lateralStroke = Math.hypot(paddle.vel.x, paddle.vel.y);
-      const strokeIntensity = forwardStroke + lateralStroke * 0.25;
-      const isSmash = strokeIntensity >= 2.5 || paddle.isSwinging;
+      const strokeIntensity = forwardStroke + lateralStroke * 0.20;
 
       let forwardSpeed: number;
-      if (isP1) {
+      if (isP1 || this.isMultiplayer) {
         const incomingZSpeed = Math.abs(b.vel.z);
-        if (strokeIntensity < 0.60 && !paddle.isSwinging) {
-          // Soft block / passive return: controlled, gentle short pace (~3.2 to 4.2 m/s based on incoming ball)
-          forwardSpeed = Math.min(4.30, Math.max(3.20, incomingZSpeed * 0.42 + 1.50 + strokeIntensity * 0.85));
-        } else if (isSmash) {
-          // Fast drive / smash: capped at 8.15 m/s
-          forwardSpeed = Math.min(8.15, 5.50 + strokeIntensity * 0.40);
-        } else {
-          // Standard rally: readable, controlled pace (~4.3 to 5.2 m/s)
-          forwardSpeed = 4.30 + strokeIntensity * 0.35;
-        }
+        // Base return speed for stationary paddle / passive block:
+        // controlled, gentle pace (~3.4 to 3.8 m/s based on incoming ball)
+        const baseSpeed = Math.min(3.90, Math.max(3.20, incomingZSpeed * 0.35 + 1.80));
+
+        // Smooth continuous stroke boost:
+        // Gentle hits (S < 0.5) produce small, predictable, controlled increases
+        // Medium rally strokes smoothly scale to standard rally pace (~4.5 to 5.5 m/s)
+        // Hard drives & smashes (S >= 5.0) scale up to maximum smash speed (capped at 8.15 m/s)
+        const strokeBoost = strokeIntensity * (0.65 + 0.20 * Math.min(1.0, strokeIntensity / 4.0));
+        forwardSpeed = Math.min(8.15, baseSpeed + strokeBoost);
       } else {
         // Player 2 (AI): Humanized, enjoyable, beatable rally pace!
         // AI does NOT launch 8 m/s bullets. Standard returns are readable and calibrated by difficulty.
@@ -874,12 +876,16 @@ export class PhysicsSimulation {
       // Brushing laterally across the ball generates an authentic, clearly visible curving arc (~15-35cm bend).
       // Brushing to the right curves to the right; brushing to the left curves to the left.
       let spinY: number;
-      if (isP1) {
-        const lateralBrush = paddle.vel.x;
-        const offCenterBrush = (dx / PADDLE_RADIUS) * 24.0;
-        // Highly responsive lateral brushing: a deliberate swipe imparts 40-120 rad/s sidespin
-        const swipeSidespin = lateralBrush * 50.0 + offCenterBrush;
-        spinY = Math.max(-140.0, Math.min(140.0, swipeSidespin));
+      if (isP1 || this.isMultiplayer) {
+        // Capture lateral stroke brushing from paddle velocity and active swing stroke
+        const swingBrush = (paddle.swingDirection?.x || 0) * (paddle.swingPower || 0.7) * 2.5;
+        const effectiveLateral = Math.abs(paddle.vel.x) > Math.abs(swingBrush)
+          ? paddle.vel.x
+          : (paddle.vel.x * 0.35 + swingBrush * 0.65);
+
+        const offCenterBrush = (dx / PADDLE_RADIUS) * 20.0;
+        const swipeSidespin = effectiveLateral * 45.0 + offCenterBrush;
+        spinY = Math.max(-140.0, Math.min(140.0, isP1 ? swipeSidespin : -swipeSidespin));
       } else {
         // Player 2 (AI): Sidespin depends strictly on difficulty tier
         if (this.aiDifficulty === 'easy') {
@@ -907,16 +913,14 @@ export class PhysicsSimulation {
       };
 
       // 2. Dynamic Net Clearance & Landing Arc:
+      const isSmash = forwardSpeed >= 6.8 || strokeIntensity >= 3.5;
       let targetLandingZ: number;
       if (isP1) {
-        if (strokeIntensity < 0.60 && !paddle.isSwinging) {
-          // Gentle touch / soft block: lands mid-court (-0.45 to -0.60m) so it does NOT fly far!
-          targetLandingZ = -0.48 - strokeIntensity * 0.20;
-        } else if (isSmash) {
-          targetLandingZ = -0.92;
-        } else {
-          targetLandingZ = -0.72;
-        }
+        const landingBlend = Math.min(1.0, Math.max(0, (forwardSpeed - 3.20) / 4.50));
+        targetLandingZ = -0.50 - landingBlend * 0.42;
+      } else if (this.isMultiplayer) {
+        const landingBlend = Math.min(1.0, Math.max(0, (forwardSpeed - 3.20) / 4.50));
+        targetLandingZ = 0.50 + landingBlend * 0.42;
       } else {
         targetLandingZ = 0.88;
       }
@@ -938,23 +942,22 @@ export class PhysicsSimulation {
       const strokeInfluence = Math.max(-0.3, Math.min(0.8, paddle.vel.y * 0.25));
       let newVy = targetVyForLanding + tiltInfluence + strokeInfluence;
 
-      if (isSmash || forwardSpeed >= 7.0) {
+      if (isSmash || forwardSpeed >= 6.8) {
         newVy = Math.max(minVyToClear, Math.min(1.40, newVy));
-      } else if (isP1 && strokeIntensity < 0.60 && !paddle.isSwinging) {
-        // Small gentle stroke: crisp low clearance without ballooning up into a giant lob
-        newVy = Math.max(minVyToClear + 0.02, minVyToClear + 0.12);
+      } else if (forwardSpeed < 4.20) {
+        // Controlled low clearance for gentle hits without popping up into a balloon lob
+        newVy = Math.max(minVyToClear + 0.02, Math.min(1.65, minVyToClear + 0.10 + strokeInfluence));
       } else {
         newVy = Math.max(minVyToClear + 0.04, Math.min(2.10, Math.max(minVyToClear + 0.04, targetVyForLanding)));
       }
 
       // 3. Initial Vx & Curving Shot physics:
-      // In real table tennis, brushing right imparts a slight initial rightward impulse,
-      // and in flight the Magnus sidespin curves the ball continuously further to the right!
+      // In real table tennis, brushing imparts an initial contact deflection and aerodynamic Magnus curve in flight
       let newVx: number;
-      if (isP1) {
-        const strokeAim = (dx / PADDLE_RADIUS) * 0.14;
-        const centering = b.pos.x * 0.20;
-        const brushImpulse = paddle.vel.x * 0.16;
+      if (isP1 || this.isMultiplayer) {
+        const strokeAim = (dx / PADDLE_RADIUS) * 0.12;
+        const centering = -b.pos.x * 0.15;
+        const brushImpulse = (isP1 ? spinY : -spinY) * 0.0022;
         newVx = (centering + strokeAim) / timeToLand + brushImpulse;
         newVx = Math.max(-1.50, Math.min(1.50, newVx));
       } else {
@@ -1040,8 +1043,11 @@ export class PhysicsSimulation {
       b.vel.y = newVy;
       b.vel.z = newVz;
 
-      // Anti-tunneling displacement in front of blade
-      b.pos.z = paddle.pos.z + normal.z * (BALL_RADIUS + 0.02);
+      // Position ball cleanly on paddle front face along true 3D normal
+      const contactSep = BALL_RADIUS + PADDLE_THICKNESS / 2 + 0.003;
+      b.pos.x = paddle.pos.x + dx * 0.6 + normal.x * contactSep;
+      b.pos.y = paddle.pos.y + dy * 0.6 + normal.y * contactSep;
+      b.pos.z = paddle.pos.z + normal.z * contactSep;
 
       const intensity = Math.min(1.0, Math.hypot(b.vel.x, b.vel.y, b.vel.z) / 9.5);
       return { collided: true, intensity };
